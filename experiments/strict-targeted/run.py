@@ -403,7 +403,7 @@ def _mcp_options(repo: Path, directory: Path) -> list[str]:
         ]),
         '--config', f'mcp_servers.agent-runner.cwd={json.dumps(str(directory))}',
         '--config', 'mcp_servers.agent-runner.default_tools_approval_mode="approve"',
-        '--config', 'mcp_servers.agent-runner.enabled_tools=["docker_test", "reviewed_commits"]',
+        '--config', 'mcp_servers.agent-runner.enabled_tools=["docker_test"]',
     ]
 
 

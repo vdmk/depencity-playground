@@ -61,7 +61,7 @@ def test_mcp_cli_rejects_dockerfile_outside_build_root(tmp_path):
     assert 'path must be inside workspace' in result.output
 
 
-def test_runner_mcp_exposes_test_and_commit_tools():
+def test_runner_mcp_exposes_only_docker_test():
     import asyncio
 
     runner_tools = asyncio.run(
@@ -70,75 +70,7 @@ def test_runner_mcp_exposes_test_and_commit_tools():
 
     assert {tool.name for tool in runner_tools} == {
         "docker_test",
-        "git_commit",
-        "reviewed_commits",
     }
-
-
-def test_mcp_git_commit_commits_all_changes_in_bound_worktree(tmp_path, monkeypatch):
-    repo = tmp_path / "repo"
-    worktree = tmp_path / "agent-worktree"
-    repo.mkdir()
-    subprocess.run(
-        ["git", "init", "-b", "main", str(repo)],
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(repo), "config", "user.name", "Test Agent"],
-        check=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(repo), "config", "user.email", "agent@example.test"],
-        check=True,
-    )
-    (repo / "Dockerfile.test").write_text("FROM scratch\n")
-    (repo / "tracked.py").write_text("before = True\n")
-    subprocess.run(
-        ["git", "-C", str(repo), "add", "Dockerfile.test", "tracked.py"],
-        check=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-m", "initial"],
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(repo), "worktree", "add", "-b", "codex-batch/test/agent", str(worktree)],
-        check=True,
-        capture_output=True,
-    )
-    (worktree / "tracked.py").write_text("after = True\n")
-    (worktree / "unselected.py").write_text("left_alone = True\n")
-    monkeypatch.chdir(worktree)
-
-    async def call_tool():
-        async with Client(
-            create_runner_server(worktree, repo, repo / "Dockerfile.test")
-        ) as client:
-            return await client.call_tool(
-                "git_commit",
-                {"message": "refactor: update worktree"},
-            )
-
-    response = asyncio.run(call_tool())
-    committed = subprocess.run(
-        ["git", "-C", str(worktree), "show", "--pretty=format:", "--name-only", "HEAD"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-    status = subprocess.run(
-        ["git", "-C", str(worktree), "status", "--short"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-
-    assert response.is_error is False
-    assert response.content[0].text
-    assert committed == ["tracked.py", "unselected.py"]
-    assert not status
 
 
 def test_mcp_docker_tool_runs_through_fake_docker(tmp_path, monkeypatch):

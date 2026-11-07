@@ -1,4 +1,4 @@
-"""MCP tools for testing and committing within one agent worktree."""
+"""MCP tool for Docker testing."""
 
 from __future__ import annotations
 
@@ -49,7 +49,6 @@ def create_server(
     dockerfile: Path,
     image: str = DEFAULT_BUILD_IMAGE,
 ) -> FastMCP:
-    ledger = build_root / 'agent-runner-files' / 'reviewed.jsonl'
     @lifespan
     async def app_lifespan(_server):
         yield {
@@ -57,13 +56,10 @@ def create_server(
             'build_root': build_root,
             'dockerfile': dockerfile,
             'image': image,
-            'ledger': ledger.resolve(),
         }
 
     mcp = FastMCP('agent-runner', lifespan=app_lifespan)
     mcp.tool(docker_test)
-    mcp.tool(git_commit)
-    mcp.tool(reviewed_commits)
     return mcp
 
 
@@ -81,27 +77,6 @@ async def docker_test(
         config['dockerfile'],
         command,
         config['image'],
-    )
-
-
-async def git_commit(ctx: Context, message: str) -> str:
-    """Commit all tracked and untracked changes in this worktree.
-
-    Equivalent to `git add -A && git commit -m`; inspect and test all changes first.
-    """
-    return await asyncio.to_thread(
-        _git_commit,
-        ctx.lifespan_context['workspace_root'],
-        message,
-    )
-
-
-async def reviewed_commits(ctx: Context, query: str | None = None) -> str:
-    """Search the coordinator's local review ledger without modifying it."""
-    return await asyncio.to_thread(
-        _reviewed_commits,
-        ctx.lifespan_context['ledger'],
-        query,
     )
 
 
@@ -142,50 +117,6 @@ def _run_docker(
     if result.returncode and docker_daemon_unavailable(result.stdout):
         raise RuntimeError(f'Docker daemon is unavailable: {result.stdout.strip()}')
     return result
-
-
-def _git_commit(workspace: Path, message: str) -> str:
-    if not message.strip():
-        raise ValueError('a commit message is required')
-
-    root = Path(_git_output(workspace, 'rev-parse', '--show-toplevel')).resolve()
-    if root != workspace or not (workspace / '.git').is_file():
-        raise ValueError('MCP workspace must be a linked Git worktree root')
-    if not _git_output(workspace, 'branch', '--show-current').startswith('codex-batch/'):
-        raise ValueError('commits are allowed only on codex-batch worktree branches')
-    _git_output(workspace, 'add', '--all')
-    _git_output(
-        workspace,
-        '-c', 'core.hooksPath=/dev/null',
-        '-c', 'commit.gpgsign=false',
-        'commit', '-m', message,
-    )
-    return _git_output(workspace, 'rev-parse', '--short', 'HEAD')
-
-
-def _reviewed_commits(ledger: Path | None, query: str | None) -> str:
-    records = _read_review_records(ledger)
-    if query:
-        records = [
-            record for record in records
-            if query.lower() in json.dumps(record, sort_keys=True).lower()
-        ]
-    return json.dumps(records, sort_keys=True)
-
-
-def _read_review_records(ledger: Path | None) -> list[dict]:
-    if ledger is None or not ledger.is_file():
-        return []
-    return [json.loads(line) for line in ledger.read_text().splitlines() if line]
-
-
-def _git_output(workspace: Path, *args: str) -> str:
-    return subprocess.run(
-        ['git', '-C', str(workspace), *args],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
 
 
 def _inside(root: Path, value: str | Path) -> Path:

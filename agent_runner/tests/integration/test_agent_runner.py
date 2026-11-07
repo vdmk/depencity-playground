@@ -2,11 +2,21 @@ import json
 import os
 import signal
 import subprocess
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
 from agent_runner import runner as agent_runner
+from agent_runner import git as worker_git
+from agent_runner import codex as codex_execution
+
+
+def _invoke_run(arguments):
+    return CliRunner().invoke(agent_runner.main, [
+        'run', '--use-git',
+        *arguments,
+    ])
 
 
 def _run_git(repo, *args):
@@ -23,6 +33,7 @@ def _create_repository(path):
     _run_git(path, 'init', '-b', 'main')
     _run_git(path, 'config', 'user.name', 'Test')
     _run_git(path, 'config', 'user.email', 'test@example.com')
+    (path / '.gitignore').write_text('.worktrees/\nagent-runner-files/logs/\n')
     (path / 'AGENTS.md').write_text('Project guidance.\n')
     (path / 'module.py').write_text('value = 1\n')
     source_root = path / 'agent_runner/src/agent_runner'
@@ -62,7 +73,7 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
-    result = CliRunner().invoke(agent_runner.main, [
+    result = _invoke_run([
         '--repo', str(repo),
         '--count', '3',
         '--iterations', '2',
@@ -70,74 +81,33 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
 
     assert result.exit_code == 1, result.output
     output = result.output
-    assignments = {
-        'agent-01': (
-            'agent_runner/src/agent_runner/alpha.py',
-            'depencity/src/depencity/epsilon.py',
-        ),
-        'agent-02': (
-            'agent_runner/src/agent_runner/beta.py',
-            'depencity/src/depencity/gamma.py',
-        ),
-        'agent-03': (
-            'depencity/src/depencity/delta.py',
-            'depencity/src/depencity/zeta.py',
-        ),
-    }
-    for name, files in assignments.items():
-        assert f'Launching {name} run 1: branch=codex-batch/' in output
-        assert f'worktree={repo}/.worktrees/codex-batch/' in output
-        assert f'{name} run 1: finished with return code 0' in output
-        assert f'Launching {name} run 2: branch=codex-batch/' in output
-        assert f'{name}: committed ' in output
-        assert 'next iteration gets a fresh worktree' in output
-        assert f'{name} run 2: finished with return code 1' in output
+    for name in ('agent-01', 'agent-02', 'agent-03'):
+        assert f'{name}.1: launching' in output
+        assert f'Created worktree: {repo}/.worktrees/codex-batch/' in output
+        assert f'{name}.1: finished with return code 0' in output
+        assert f'{name}.2: launching' in output
+        assert f'{name}.2: finished with return code 1' in output
         worker_root = next((repo / '.worktrees' / 'codex-batch').rglob(f'{name}'))
         first_worktree = worker_root / 'iteration-1'
         worker_worktree = worker_root / 'iteration-2'
-        assert (first_worktree / 'AGENTS.md').exists()
-        assert (worker_worktree / 'AGENTS.md').exists()
-        assert _run_git(worker_worktree, 'branch', '--show-current').endswith(f'{name}/iteration-2')
-        assert not (worker_worktree / 'candidate.py').exists()
+        assert not first_worktree.exists()
+        assert not worker_worktree.exists()
         logs = sorted((repo / 'agent-runner-files' / 'logs').rglob(f'{name}.*.jsonl'))
         assert len(logs) == 2
         assert 'turn.completed' in logs[0].read_text()
         arguments = (capture_dir / f'{name}.iteration-1.args').read_text().splitlines()
         next_arguments = (capture_dir / f'{name}.iteration-2.args').read_text().splitlines()
         assert '--ephemeral' in arguments
-        assert '--ignore-user-config' in arguments
+        assert '--ignore-user-config' not in arguments
         assert arguments[arguments.index('--sandbox') + 1] == 'workspace-write'
         assert 'approval_policy="on-request"' in arguments
-        assert 'mcp_servers.depencity.default_tools_approval_mode="approve"' in arguments
-        assert 'mcp_servers.agent-runner.default_tools_approval_mode="approve"' in arguments
-        assert (
-            'mcp_servers.agent-runner.enabled_tools='
-            '["docker_test", "git_commit", "reviewed_commits"]'
-        ) in arguments
+        assert not any(value.startswith('mcp_servers.') for value in arguments)
         assert arguments[arguments.index('--model') + 1] == 'gpt-6-luna'
         task = arguments[-1]
-        assert task.startswith('Inspect the compact profile for the whole module or package')
-        assert task.endswith(f'Refactor only these source files, in order: {", ".join(files)}. ')
-        assert next_arguments[-1].endswith(
-            f'Refactor only these source files, in order: {", ".join(reversed(files))}. '
-        )
-        graph_mcp_args = json.loads(
-            next(value for value in arguments if value.startswith('mcp_servers.depencity.args='))
-            .partition('=')[2]
-        )
-        runner_mcp_args = json.loads(
-            next(value for value in arguments if value.startswith('mcp_servers.agent-runner.args='))
-            .partition('=')[2]
-        )
-        worktree = arguments[arguments.index('--cd') + 1]
-        assert graph_mcp_args[:4] == ['run', '--project', str(repo), 'depencity-mcp']
-        assert graph_mcp_args[graph_mcp_args.index('--workspace') + 1] == worktree
-        assert runner_mcp_args[:3] == ['run', '--project', str(repo)]
-        assert runner_mcp_args[runner_mcp_args.index('--build-root') + 1] == str(repo)
-        assert runner_mcp_args[runner_mcp_args.index('--dockerfile') + 1] == 'docker/test/Dockerfile'
-        assert f'mcp_servers.depencity.cwd={json.dumps(worktree)}' in arguments
-        assert f'mcp_servers.agent-runner.cwd={json.dumps(worktree)}' in arguments
-
+        assert task.startswith('Make one coherent, behavior-preserving refactoring.')
+        assert task.startswith(agent_runner.DEFAULT_TASK)
+        assert "Do not commit changes" in task
+        assert next_arguments[-1] == task
         branches = _run_git(repo, 'branch', '--list', f'codex-batch/*/{name}/iteration-*')
         branch_names = [
             line.strip().removeprefix('+ ').removeprefix('* ')
@@ -146,7 +116,7 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
         candidate_branch = next(branch for branch in branch_names if branch.endswith('/iteration-1'))
         assert any(branch.endswith('/iteration-2') for branch in branch_names)
         assert _run_git(repo, 'show', f'{candidate_branch}:candidate.py') == 'candidate = 1'
-        assert (first_worktree / 'candidate.py').exists()
+        assert _run_git(repo, 'show', f'{candidate_branch}:candidate.py') == 'candidate = 1'
 
     assert _run_git(repo, 'branch', '--show-current') == 'main'
     assert _run_git(repo, 'log', '-1', '--format=%s', 'main') == 'initial'
@@ -159,29 +129,31 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
     ('--iterations', '101'),
 ])
 def test_runner_rejects_limits_outside_one_to_one_hundred(option, value):
-    result = CliRunner().invoke(agent_runner.main, [option, value])
+    result = _invoke_run([option, value])
 
     assert result.exit_code == 2
     assert 'Invalid value for' in result.output
 
 
-def test_runner_repeats_files_when_agents_outnumber_them(tmp_path, monkeypatch):
+def test_runner_passes_same_task_to_all_workers(tmp_path, monkeypatch):
     repo = tmp_path / 'repo'
     _create_repository(repo)
     tasks = {}
 
-    def run_agent(name, _index, _worktree, _repo, _logs, _codex, task, _model, _branch):
+    def run_agent(_self, log_name, _worktree, task):
+        name = log_name.name.rsplit('.', 1)[0]
         tasks[name] = task
         return 1
 
-    monkeypatch.setattr(agent_runner.shutil, 'which', lambda _name: '/codex')
-    monkeypatch.setattr(agent_runner, '_run_agent', run_agent)
+    monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: '/codex')
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
 
-    result = CliRunner().invoke(agent_runner.main, ['--repo', str(repo), '--count', '7'])
+    result = _invoke_run(['--repo', str(repo), '--count', '7'])
 
     assert result.exit_code == 1
     assert len(tasks) == 7
-    assert tasks['agent-07'] == tasks['agent-01']
+    assert len(set(tasks.values())) == 1
+    assert all(task.startswith(agent_runner.DEFAULT_TASK) for task in tasks.values())
 
 
 def test_runner_uses_checked_out_commit_as_worktree_base(tmp_path, monkeypatch):
@@ -203,7 +175,7 @@ def test_runner_uses_checked_out_commit_as_worktree_base(tmp_path, monkeypatch):
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
-    result = CliRunner().invoke(agent_runner.main, [
+    result = _invoke_run([
         '--repo', str(repo),
         '--count', '1',
     ])
@@ -217,9 +189,14 @@ def test_runner_uses_latest_starting_branch_tip_for_later_iterations(tmp_path, m
     repo = tmp_path / 'repo'
     _create_repository(repo)
     worktrees = []
+    starts = []
 
-    def run_agent(_name, run_index, worktree, *_args):
+    def run_agent(_self, log_name, worktree, *_args):
+        run_index = int(log_name.name.rsplit('.', 1)[1])
         worktrees.append(worktree)
+        starts.append(_run_git(worktree, 'rev-parse', 'HEAD'))
+        if run_index == 2:
+            assert (worktree / 'accepted.py').exists()
         if run_index == 1:
             (worktree / 'accepted.py').write_text('accepted = True\n')
             _run_git(worktree, 'add', 'accepted.py')
@@ -229,10 +206,10 @@ def test_runner_uses_latest_starting_branch_tip_for_later_iterations(tmp_path, m
             return 0
         return 1
 
-    monkeypatch.setattr(agent_runner.shutil, 'which', lambda _name: '/codex')
-    monkeypatch.setattr(agent_runner, '_run_agent', run_agent)
+    monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: '/codex')
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
 
-    result = CliRunner().invoke(agent_runner.main, [
+    result = _invoke_run([
         '--repo', str(repo),
         '--count', '1',
         '--iterations', '2',
@@ -240,9 +217,8 @@ def test_runner_uses_latest_starting_branch_tip_for_later_iterations(tmp_path, m
 
     assert result.exit_code == 1, result.output
     assert len(worktrees) == 2
-    assert (worktrees[0] / 'accepted.py').exists()
-    assert (worktrees[1] / 'accepted.py').exists()
-    assert _run_git(worktrees[1], 'rev-parse', 'HEAD') == _run_git(repo, 'rev-parse', 'HEAD')
+    assert all(not path.exists() for path in worktrees)
+    assert starts[1] == _run_git(repo, 'rev-parse', 'HEAD')
 
 
 def test_runner_retires_failed_agents_and_relaunches_remaining_agents(tmp_path, monkeypatch):
@@ -265,19 +241,19 @@ def test_runner_retires_failed_agents_and_relaunches_remaining_agents(tmp_path, 
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
-    result = CliRunner().invoke(agent_runner.main, [
+    result = _invoke_run([
         '--repo', str(repo),
         '--count', '2',
         '--iterations', '2',
     ])
 
     assert result.exit_code == 1
-    assert 'agent-01 run 1: finished with return code 1' in result.output
+    assert 'agent-01.1: finished with return code 1' in result.output
     assert 'agent-01: stopped after nonzero exit' in result.output
-    assert 'agent-02 run 1: finished with return code 0' in result.output
-    assert 'agent-02 run 2: finished with return code 1' in result.output
+    assert 'agent-02.1: finished with return code 0' in result.output
+    assert 'agent-02.2: finished with return code 1' in result.output
     assert 'No agents remain; stopping.' in result.output
-    assert result.output.count('agent-01 run 1: finished with return code 1') == 1
+    assert result.output.count('agent-01.1: finished with return code 1') == 1
     assert sorted(path.name for path in capture_dir.iterdir()) == [
         'agent-01.started',
         'agent-02.once',
@@ -317,7 +293,7 @@ def test_agents_relaunch_independently(tmp_path, monkeypatch):
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
-    result = CliRunner().invoke(agent_runner.main, [
+    result = _invoke_run([
         '--repo', str(repo),
         '--count', '2',
         '--iterations', '2',
@@ -325,25 +301,27 @@ def test_agents_relaunch_independently(tmp_path, monkeypatch):
 
     assert result.exit_code == 1, result.output
     assert (capture_dir / 'agent-02-ran-first').exists()
-    assert result.output.index('Launching agent-02 run 2') < result.output.index(
-        'agent-01 run 1: finished with return code 0'
+    assert result.output.index('agent-02.2: launching') < result.output.index(
+        'agent-01.1: finished with return code 0'
     )
 
 
 def test_runner_stops_relaunching_after_first_interrupt(tmp_path, monkeypatch):
     repo = tmp_path / 'repo'
     _create_repository(repo)
-    monkeypatch.setattr(agent_runner.shutil, 'which', lambda _name: 'codex')
+    monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: 'codex')
     calls = []
 
-    def interrupt_agent(name, *_args):
-        calls.append(name)
+    def interrupt_agent(_self, log_name, *_args):
+        calls.append(log_name.name.rsplit('.', 1)[0])
         os.kill(os.getpid(), signal.SIGINT)
         return 0
 
-    monkeypatch.setattr(agent_runner, '_run_agent', interrupt_agent)
+    monkeypatch.setattr(agent_runner.Codex, 'run', interrupt_agent)
 
-    assert agent_runner.run(repo, 1, 'task', 'model')
+    assert agent_runner.Runner(
+        agent_runner.Codex('model'), repo, 1, 'task', 1, worker_git.NoGit(repo), tmp_path, 'interrupt-test',
+    ).run()
     assert calls == ['agent-01']
 
 
@@ -351,9 +329,9 @@ def test_runner_retires_agents_that_cannot_start(tmp_path, monkeypatch):
     repo = tmp_path / 'repo'
     _create_repository(repo)
     missing_codex = tmp_path / 'missing-codex'
-    monkeypatch.setattr(agent_runner.shutil, 'which', lambda _name: str(missing_codex))
+    monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: str(missing_codex))
 
-    result = CliRunner().invoke(agent_runner.main, [
+    result = _invoke_run([
         '--repo', str(repo),
         '--count', '2',
     ])
@@ -368,8 +346,8 @@ def test_runner_retires_agents_that_cannot_start(tmp_path, monkeypatch):
 def test_runner_continues_when_one_agent_cannot_create_worktree(tmp_path, monkeypatch):
     repo = tmp_path / 'repo'
     _create_repository(repo)
-    monkeypatch.setattr(agent_runner.shutil, 'which', lambda _name: 'codex')
-    create_worktree = agent_runner._create_worktree
+    monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: 'codex')
+    create_worktree = worker_git.create_worktree
     started_agents = []
 
     def create_agent_worktree(repo, root, name, iteration, base):
@@ -377,14 +355,14 @@ def test_runner_continues_when_one_agent_cannot_create_worktree(tmp_path, monkey
             raise OSError('worktree unavailable')
         return create_worktree(repo, root, name, iteration, base)
 
-    def run_agent(name, *_args):
-        started_agents.append(name)
+    def run_agent(_self, log_name, *_args):
+        started_agents.append(log_name.name.rsplit('.', 1)[0])
         return 1
 
-    monkeypatch.setattr(agent_runner, '_create_worktree', create_agent_worktree)
-    monkeypatch.setattr(agent_runner, '_run_agent', run_agent)
+    monkeypatch.setattr(worker_git, 'create_worktree', create_agent_worktree)
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
 
-    result = CliRunner().invoke(agent_runner.main, [
+    result = _invoke_run([
         '--repo', str(repo),
         '--count', '2',
     ])
@@ -399,7 +377,220 @@ def test_runner_requires_a_clean_repository(tmp_path):
     _create_repository(repo)
     (repo / 'uncommitted.py').write_text('changed = True\n')
 
-    result = CliRunner().invoke(agent_runner.main, ['--repo', str(repo)])
+    result = _invoke_run(['--repo', str(repo)])
 
     assert result.exit_code == 1
     assert 'repository must be clean' in result.output
+
+
+def test_sequential_turns_build_commit_chain_in_target_repository(tmp_path, monkeypatch):
+    repo = tmp_path / 'repo'
+    _create_repository(repo)
+    # Generic repositories do not need AGENTS.md or the runner's source layout.
+    _run_git(repo, 'rm', '-r', 'AGENTS.md', 'agent_runner', 'depencity')
+    _run_git(repo, 'commit', '-m', 'generic project')
+    original = _run_git(repo, 'rev-parse', 'HEAD')
+    codex = tmp_path / 'codex'
+    codex.write_text(
+        '#!/bin/sh\n'
+        'printf "change = True\\n" >> module.py\n'
+        'git add module.py\n'
+        'git commit -m "refactor: next turn" >/dev/null\n'
+    )
+    codex.chmod(0o755)
+    monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
+
+    result = CliRunner().invoke(agent_runner.main, [
+        'run', '--repo', str(repo), '--iterations', '3', '--task', 'Refactor module.py.',
+    ])
+
+    assert result.exit_code == 0, result.output
+    assert not (repo / '.worktrees').exists()
+    assert _run_git(repo, 'rev-list', '--count', f'{original}..HEAD') == '3'
+    assert (repo / 'module.py').read_text().count('change = True') == 3
+    assert _run_git(repo, 'branch', '--show-current') == 'main'
+    assert len(list((repo / 'agent-runner-files/logs').rglob('*.jsonl'))) == 3
+
+
+@pytest.mark.parametrize('failure', ['dirty', 'nonzero'])
+def test_sequential_stops_and_preserves_failed_turn(tmp_path, monkeypatch, failure):
+    repo = tmp_path / 'repo'
+    _create_repository(repo)
+    calls = []
+
+    def run_agent(_self, log_name, worktree, *_args):
+        calls.append(int(log_name.name.rsplit('.', 1)[1]))
+        (worktree / 'module.py').write_text('incomplete = True\n')
+        return 1 if failure == 'nonzero' else 0
+
+    monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: 'codex')
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
+    result = CliRunner().invoke(agent_runner.main, [
+        'run', '--repo', str(repo), '--iterations', '3',
+    ])
+
+    assert result.exit_code == (1 if failure == 'nonzero' else 0), result.output
+    assert calls == ([1] if failure == 'nonzero' else [1, 2, 3])
+    assert not (repo / '.worktrees').exists()
+    assert (repo / 'module.py').read_text() == 'incomplete = True\n'
+
+
+def test_sequential_can_use_git(tmp_path, monkeypatch):
+    repo = tmp_path / 'repo'
+    _create_repository(repo)
+    workspaces = []
+
+    def run_agent(_self, _log_name, workspace, *_args):
+        workspaces.append(workspace)
+        return 0
+
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
+    result = CliRunner().invoke(agent_runner.main, [
+        'run', '--repo', str(repo), '--iterations', '2', '--use-git',
+    ])
+    assert result.exit_code == 0, result.output
+    assert len(set(workspaces)) == 2
+    assert all(path != repo and not path.exists() for path in workspaces)
+
+
+def test_single_worker_without_git_works_outside_git(tmp_path, monkeypatch):
+    workspaces = []
+
+    def run_agent(_self, _log_name, workspace, task):
+        workspaces.append(workspace)
+        assert task.startswith('Do the task Do not commit changes')
+        return 0
+
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
+    result = CliRunner().invoke(agent_runner.main, [
+        'run', '--repo', str(tmp_path), '--count', '1', '--task', 'Do the task',
+    ])
+    assert result.exit_code == 0, result.output
+    assert workspaces == [tmp_path]
+    assert not (tmp_path / '.worktrees').exists()
+
+
+@pytest.mark.parametrize('dirty', [False, True])
+def test_worktree_context_cleanup_on_exception_preserves_branch_and_edits(tmp_path, dirty):
+    repo = tmp_path / 'repo'
+    _create_repository(repo)
+    worktrees = worker_git.Git(repo, 'context-test')
+    with pytest.raises(RuntimeError, match='turn failed'):
+        with worktrees.create_branch('agent-01', 1, tmp_path / 'summary.json') as branch_workspace:
+            workspace = branch_workspace.work_dir
+            branch = _run_git(workspace, 'branch', '--show-current')
+            if dirty:
+                (workspace / 'module.py').write_text('unfinished = True\n')
+                (workspace / 'new.py').write_text('untracked = True\n')
+            raise RuntimeError('turn failed')
+    assert _run_git(repo, 'rev-parse', '--verify', branch)
+    assert workspace.exists() == dirty
+    if dirty:
+        assert (workspace / 'module.py').read_text() == 'unfinished = True\n'
+        assert (workspace / 'new.py').exists()
+    assert str(workspace) in _run_git(repo, 'worktree', 'list') if dirty else str(workspace) not in _run_git(repo, 'worktree', 'list')
+
+
+@pytest.mark.parametrize('relative', [False, True])
+def test_runner_uses_configured_log_root(tmp_path, monkeypatch, relative):
+    repo = tmp_path / 'project'
+    repo.mkdir()
+    log_root = repo / 'custom-logs' if relative else tmp_path / 'external-logs'
+    captured = []
+
+    def run_agent(_self, log_name, _workspace, _task):
+        captured.append(log_name)
+        return 0
+
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
+    result = CliRunner().invoke(agent_runner.main, [
+        'run', '--repo', str(repo),
+        '--log-root', 'custom-logs' if relative else str(log_root),
+    ])
+    assert result.exit_code == 0, result.output
+    assert captured[0].parent.parent == log_root
+    assert captured[0].parent.is_dir()
+    assert not (repo / 'agent-runner-files').exists()
+
+
+@pytest.mark.parametrize('use_git', [False, True])
+def test_runner_commits_with_summary_only_when_worktrees_enabled(tmp_path, monkeypatch, use_git):
+    repo = tmp_path / 'repo'
+    _create_repository(repo)
+    base = _run_git(repo, 'rev-parse', 'HEAD')
+    codex = tmp_path / 'codex'
+    codex.write_text(
+        '#!/bin/sh\n'
+        'previous=""\n'
+        'for argument in "$@"; do\n'
+        '  if [ "$previous" = "--output-last-message" ]; then\n'
+        '    printf \'{"short_summary":"simplify module initialization"}\\n\' > "$argument"\n'
+        '  fi\n'
+        '  previous="$argument"\n'
+        'done\n'
+        'printf "value = 2\\n" > module.py\n'
+        'printf "new_value = 3\\n" > new.py\n'
+    )
+    codex.chmod(0o755)
+    monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
+    arguments = ['run', '--repo', str(repo)]
+    if use_git:
+        arguments.extend(['--use-git', '--iterations', '2'])
+    result = CliRunner().invoke(agent_runner.main, arguments)
+    assert result.exit_code == 0, result.output
+    assert _run_git(repo, 'rev-parse', 'HEAD') == base
+    summaries = list((repo / 'agent-runner-files/logs').rglob('*.summary.json'))
+    assert len(summaries) == (2 if use_git else 1)
+    assert all(json.loads(path.read_text()) == {'short_summary': 'simplify module initialization'}
+               for path in summaries)
+    if use_git:
+        branches = _run_git(repo, 'for-each-ref', '--format=%(refname)', 'refs/heads/codex-batch').splitlines()
+        assert len(branches) == 2
+        for branch in branches:
+            assert _run_git(repo, 'rev-list', '--count', f'{base}..{branch}') == '1'
+            assert _run_git(repo, 'log', '-1', '--format=%s', branch) == 'auto-refactor: simplify module initialization'
+            assert _run_git(repo, 'show', f'{branch}:module.py') == 'value = 2'
+            assert _run_git(repo, 'show', f'{branch}:new.py') == 'new_value = 3'
+        assert not list((repo / '.worktrees').rglob('iteration-*'))
+        assert not _run_git(repo, 'status', '--porcelain')
+    else:
+        assert (repo / 'module.py').read_text() == 'value = 2\n'
+        assert (repo / 'new.py').exists()
+        assert _run_git(repo, 'status', '--porcelain')
+
+
+@pytest.mark.parametrize('summary', [None, 'refactor: unfinished change'])
+def test_runner_preserves_uncommitted_work_on_missing_summary_or_failure(tmp_path, monkeypatch, summary):
+    repo = tmp_path / 'repo'
+    _create_repository(repo)
+    base = _run_git(repo, 'rev-parse', 'HEAD')
+    workspaces = []
+
+    def run_agent(_self, log_name, workspace, _task):
+        workspaces.append(workspace)
+        (workspace / 'module.py').write_text('unfinished = True\n')
+        if summary is not None:
+            Path(f'{log_name}.summary.json').write_text(json.dumps({'short_summary': summary}))
+        return 1 if summary == 'refactor: unfinished change' else 0
+
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
+    result = CliRunner().invoke(agent_runner.main, [
+        'run', '--repo', str(repo), '--use-git', '--iterations', '2',
+    ])
+    assert result.exit_code == 1, result.output
+    workspace, = workspaces
+    assert (workspace / 'module.py').read_text() == 'unfinished = True\n'
+    assert _run_git(workspace, 'rev-parse', 'HEAD') == base
+
+
+def test_concurrent_workers_require_git(tmp_path, monkeypatch):
+    def unexpected_run(*args):
+        pytest.fail('workers must not start without Git isolation')
+
+    monkeypatch.setattr(agent_runner.Codex, 'run', unexpected_run)
+    result = CliRunner().invoke(agent_runner.main, [
+        'run', '--repo', str(tmp_path), '--count', '2',
+    ])
+    assert result.exit_code == 2
+    assert '--count greater than 1 requires --use-git' in result.output
+    assert not (tmp_path / 'agent-runner-files').exists()

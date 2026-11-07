@@ -3,9 +3,10 @@
 These instructions cover runner development and its worker/reviewer workflows.
 For analyzer implementation changes, follow `depencity/AGENTS.md` as well.
 
-Never use the agent-runner MCP `git_commit` tool to commit your own changes.
-Inspect the complete diff and commit directly with Git. This applies to workers
-and coordinators, including linked worktrees.
+The agent-runner MCP does not expose a commit tool. For development changes,
+inspect the complete diff and commit directly with Git. Automated workers leave
+changes uncommitted and return the requested summary; the runner creates their
+commits when worktrees are enabled.
 
 Use [approval guidance](../agent-runner-files/approval_guidance.md) when judging
 refactorings and module placement. Paths in the workflow below are relative to
@@ -149,13 +150,15 @@ Do not automatically cherry-pick or otherwise move a worker change to `main`
 when it includes test or fixture changes; report the change and ask the user
 before integrating it.
 
-Workers inspect the complete diff, including untracked files, run tests,
-and commit directly with Git in their own worktree. Do not use the MCP
-`git_commit` tool. Worker commits are not automatically moved to `main`.
+Workers inspect the complete diff, including untracked files, run tests, and
+leave changes uncommitted. They return the requested change summary; the runner
+uses it to commit when worktrees are enabled. Worker commits are not
+automatically moved to `main`.
 
-Workers use `reviewed_commits` to search prior decisions, `docker_test` to run
-tests, and Git directly to create checkpoints. The coordinator uses only
-`docker_test` and `reviewed_commits`; it does not create commits through the
+Workers read the local ledger directly to search prior decisions and use
+`docker_test` to run tests. The runner creates their Git checkpoints from the returned summary.
+The coordinator uses only
+`docker_test`; it does not create commits through the
 agent-runner MCP. Append each decision directly to
 `agent-runner-files/reviewed.jsonl` using the format above.
 

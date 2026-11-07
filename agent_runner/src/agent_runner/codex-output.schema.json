@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "short_summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "short_summary"
+  ],
+  "additionalProperties": false
+}
