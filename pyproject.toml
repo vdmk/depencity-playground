@@ -1,0 +1,13 @@
+[project]
+name = "depencity-playground"
+version = "0.1.0"
+description = "Agentic experiments using Depencity and isolated agent workers"
+requires-python = ">=3.14"
+dependencies = ["agent-runner", "depencity", "pytest>=8.0", "pytest-xdist>=3.6"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+agent-runner = { path = "agent_runner", editable = true }
+depencity = { path = "../depencity", editable = true }

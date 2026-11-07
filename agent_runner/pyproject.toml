@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-runner"
+version = "0.1.0"
+description = "Run isolated Codex workers against a shared repository"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = ["click>=8.0", "fastmcp>=3.3.1"]
+
+[project.scripts]
+agent-runner = "agent_runner.runner:main"
+agent-runner-mcp = "agent_runner.mcp:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_runner"]
