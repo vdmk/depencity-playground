@@ -86,4 +86,3 @@ class Evaluator:
         finally:
             if not accepted:
                 self.target.write_bytes(before.source)
-            Path(f'{log_path}.source.py').write_bytes(self.target.read_bytes())

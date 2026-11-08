@@ -76,7 +76,6 @@ def test_evaluated_iterations_keep_only_passing_metric_improvements(tmp_path, mo
     run_dir, = logs.iterdir()
     assert (run_dir / 'agent-01.2.diff').read_text()
     assert (run_dir / 'agent-01.2.candidate.py').read_text() == WORSE
-    assert (run_dir / 'agent-01.2.source.py').read_text() == IMPROVED
     assert all('1 passed' in path.read_text() for path in run_dir.glob('*.tests.txt'))
     assert not (repo / '.git').exists()
 
