@@ -16,23 +16,24 @@ class CodexResult:
 class Codex:
     """Run fresh agent sessions using the configured model."""
 
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, log_dir: Path) -> None:
         self.model = model
         self.codex = shutil.which('codex')
+        self.log_dir = log_dir
 
     def run(
         self,
-        log_name: Path,
+        iteration_name: str,
         work_dir: Path,
         task: str,
     ) -> CodexResult:
-
         if not self.codex:
             raise FileNotFoundError('codex CLI was not found; add it to PATH')
 
-        stdout_log = Path(f'{log_name}.jsonl')
-        stderr_log = Path(f'{log_name}.stderr.log')
-        summary_path = Path(f'{log_name}.summary.json')
+        log_path = self.log_dir / f'{iteration_name}'
+        stdout_log = Path(f'{log_path}.jsonl')
+        stderr_log = Path(f'{log_path}.stderr.log')
+        summary_path = Path(f'{log_path}.summary.json')
         command = [
             self.codex,
             'exec',

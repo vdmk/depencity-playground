@@ -154,7 +154,7 @@ def test_runner_passes_same_task_to_all_workers(tmp_path, monkeypatch):
     tasks = {}
 
     def run_agent(_self, log_name, _worktree, task):
-        name = log_name.name.rsplit('.', 1)[0]
+        name = log_name.rsplit('.', 1)[0]
         tasks[name] = task
         return codex_execution.CodexResult(1, '')
 
@@ -205,7 +205,7 @@ def test_runner_uses_latest_starting_branch_tip_for_later_iterations(tmp_path, m
     starts = []
 
     def run_agent(_self, log_name, worktree, *_args):
-        run_index = int(log_name.name.rsplit('.', 1)[1])
+        run_index = int(log_name.rsplit('.', 1)[1])
         worktrees.append(worktree)
         starts.append(_run_git(worktree, 'rev-parse', 'HEAD'))
         if run_index == 2:
@@ -326,14 +326,14 @@ def test_runner_stops_relaunching_after_first_interrupt(tmp_path, monkeypatch):
     calls = []
 
     def interrupt_agent(_self, log_name, *_args):
-        calls.append(log_name.name.rsplit('.', 1)[0])
+        calls.append(log_name.rsplit('.', 1)[0])
         os.kill(os.getpid(), signal.SIGINT)
         return codex_execution.CodexResult(0, 'simplify calculator parsing')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', interrupt_agent)
 
     assert agent_runner.Runner(
-        agent_runner.Codex('model'), repo, 1, 'task', 1, worker_git.NoGit(repo), tmp_path, 'interrupt-test',
+        agent_runner.Codex('model', tmp_path), repo, 1, 'task', 1, worker_git.NoGit(repo), 'interrupt-test',
     ).run()
     assert calls == ['agent-01']
 
@@ -369,7 +369,7 @@ def test_runner_continues_when_one_agent_cannot_create_worktree(tmp_path, monkey
         return create_worktree(repo, root, name, iteration, base)
 
     def run_agent(_self, log_name, *_args):
-        started_agents.append(log_name.name.rsplit('.', 1)[0])
+        started_agents.append(log_name.rsplit('.', 1)[0])
         return codex_execution.CodexResult(1, '')
 
     monkeypatch.setattr(worker_git, 'create_worktree', create_agent_worktree)
@@ -432,7 +432,7 @@ def test_sequential_stops_and_preserves_failed_turn(tmp_path, monkeypatch, failu
     calls = []
 
     def run_agent(_self, log_name, worktree, *_args):
-        calls.append(int(log_name.name.rsplit('.', 1)[1]))
+        calls.append(int(log_name.rsplit('.', 1)[1]))
         (worktree / 'module.py').write_text('incomplete = True\n')
         return codex_execution.CodexResult(1 if failure == 'nonzero' else 0, 'simplify parsing')
 
@@ -511,8 +511,8 @@ def test_runner_uses_configured_log_root(tmp_path, monkeypatch, relative):
     log_root = repo / 'custom-logs' if relative else tmp_path / 'external-logs'
     captured = []
 
-    def run_agent(_self, log_name, _workspace, _task):
-        captured.append(log_name)
+    def run_agent(self, iteration_name, _workspace, _task):
+        captured.append((self.log_dir, iteration_name))
         return codex_execution.CodexResult(0, 'simplify calculator parsing')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
@@ -521,8 +521,10 @@ def test_runner_uses_configured_log_root(tmp_path, monkeypatch, relative):
         '--log-root', 'custom-logs' if relative else str(log_root),
     ])
     assert result.exit_code == 0, result.output
-    assert captured[0].parent.parent == log_root
-    assert captured[0].parent.is_dir()
+    log_dir, iteration_name = captured[0]
+    assert log_dir.parent == log_root
+    assert log_dir.is_dir()
+    assert iteration_name == 'agent-01.1'
     assert not (repo / 'agent-runner-files').exists()
 
 

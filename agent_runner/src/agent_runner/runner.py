@@ -40,9 +40,14 @@ def run(repo, count, task, model, iterations, use_git, log_root) -> None:
     try:
         repo = repo.resolve()
         run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
-        codex = Codex(model)
+
+        log_root = (repo / log_root).resolve() / run_id
+        log_root.mkdir(parents=True)
+
+        codex = Codex(model, log_root)
         git = Git(repo, run_id) if use_git else NoGit(repo)
-        successful = Runner(codex, repo, count, task, iterations, git, log_root, run_id).run()
+
+        successful = Runner(codex, repo, count, task, iterations, git, run_id).run()
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         raise click.ClickException(str(error)) from error
     if not successful:
@@ -52,16 +57,14 @@ def run(repo, count, task, model, iterations, use_git, log_root) -> None:
 class Runner:
     """Schedule Codex turns with optional worktree isolation."""
 
-    def __init__(self, codex, repo, count, task, iterations, git, log_root, run_id):
+    def __init__(self, codex, repo, count, task, iterations, git, run_id):
         self.codex = codex
-        self.log_root = (repo / log_root).resolve() / run_id
-        self.log_root.mkdir(parents=True)
         self.repo = repo
         self.count = count
         self.task = (
-            f'{task} Do not commit changes; the runner handles commits. '
+            f'{task} Do not commit changes. '
             'Return a short_summary describing the change in one line. '
-            'The runner adds the auto-refactor: commit prefix.'
+            'The agent caller will commit as "auto-refactor: {short_summary}".'
         )
         self.iterations = iterations
         self.git = git
@@ -98,11 +101,10 @@ class Runner:
         for iteration in range(1, self.iterations + 1):
             if self.stopping:
                 break
-            log_path = self.log_root / f'{name}.{iteration}'
 
             with self.git.create_workspace_branch(name, iteration) as branch:
                 click.echo(f'{name}.{iteration}: launching')
-                result = self.codex.run(log_path, branch.work_dir, self.task)
+                result = self.codex.run(f'{name}.{iteration}', branch.work_dir, self.task)
                 click.echo(f'{name}.{iteration}: finished with return code {result.return_code}')
                 if result.return_code != 0:
                     click.echo(f'{name}: stopped after nonzero exit')
