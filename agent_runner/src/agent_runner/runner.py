@@ -23,20 +23,37 @@ def main() -> None:
     """Run independent candidates or cumulative refactoring turns."""
 
 
+def _common_options(command):
+    for option in reversed([
+        click.option('--log-root', type=click.Path(path_type=Path),
+                     required=True, help='Base log directory, relative to --repo or absolute.'),
+        click.option('--repo', type=click.Path(path_type=Path), default=Path.cwd),
+        click.option('--task', default=DEFAULT_TASK, help='Task for each fresh agent session.'),
+        click.option('--model', default='gpt-6-luna', show_default=True),
+    ]):
+        command = option(command)
+    return command
+
+
 @main.command()
-@click.option('--repo', type=click.Path(path_type=Path), default=Path.cwd)
-@click.option('--log-root', type=click.Path(path_type=Path), default='agent-runner-files/logs',
-              show_default=True, help='Base log directory, relative to --repo or absolute.')
-@click.option('--count', type=click.IntRange(1, 100), default=1, show_default=True)
-@click.option('--iterations', type=click.IntRange(1, 100), default=1, show_default=True)
-@click.option('--task', default=DEFAULT_TASK, help='Task for each fresh agent session.')
-@click.option('--model', default='gpt-6-luna', show_default=True)
-@click.option('--use-git', is_flag=True,
-              help='Use a fresh worktree and commit each changed iteration on its own branch.')
-def run(repo, count, task, model, iterations, use_git, log_root) -> None:
-    """Run turns with one worker, or concurrent workers when --use-git is enabled."""
-    if count > 1 and not use_git:
-        raise click.UsageError('--count greater than 1 requires --use-git')
+@click.option('--iterations', type=click.IntRange(1, 1000), default=1, show_default=True)
+@_common_options
+def run_sequential(repo, task, model, iterations, log_root) -> None:
+    """Run cumulative turns in the supplied directory without Git commits."""
+    _execute(repo, 1, task, model, iterations, False, log_root)
+
+
+@main.command()
+@click.option('--workers', type=click.IntRange(1, 100), default=5, show_default=True)
+@click.option('--turns', type=click.IntRange(1, 1000), default=1, show_default=True,
+              help='Turns per worker, each on an independent Git branch.')
+@_common_options
+def run_in_parallel(repo, workers, task, model, turns, log_root) -> None:
+    """Run workers concurrently with a fresh Git branch for each turn."""
+    _execute(repo, workers, task, model, turns, True, log_root)
+
+
+def _execute(repo, count, task, model, iterations, use_git, log_root):
     try:
         repo = repo.resolve()
         run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
