@@ -22,12 +22,15 @@ class EvaluatedRunner(InPlaceRunner):
             shutil.copyfile(repo / relative_path, destination)
         super().__init__(codex, workspace, task, iterations)
         self.evaluator = Evaluator(workspace, target, metrics, test_script)
-        evaluator = self.evaluator
         self.task += (
-            f' Refactor only {target}; do not edit tests or other files. '
-            f'Reduce these module aggregate metrics: {", ".join(evaluator.metrics)}. '
-            f'The evaluator runs pytest on {test_script}. Tests must pass; no selected '
-            'metric may increase and at least one must decrease. Rejected changes are restored.'
+            f' Refactor only {target}; preserve behavior and leave tests unchanged. '
+            f'Use MCP profile(scope="__module__", depth=0, metrics={list(metrics)!r}); '
+            'never request a full report. '
+            f'Test each candidate through the MCP docker tool using pytest on {test_script}; '
+            'never run tests on the host. Remeasure after testing. '
+            'Revert failures or non-improvements and try a different approach internally '
+            'until tests pass, no selected metric increases, and at least one decreases. '
+            'Finish with that improvement and report before/after values.'
         )
 
     def run_iteration(self, name, iteration, work_dir):

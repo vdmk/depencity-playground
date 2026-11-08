@@ -2,11 +2,13 @@
 
 import difflib
 import json
+import shlex
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from agent_runner.mcp import _docker
 
 
 @dataclass
@@ -56,15 +58,17 @@ class Evaluator:
             test_return_code = None
             status = 'agent_failed'
             if agent_return_code == 0:
-                tests = subprocess.run(
-                    [sys.executable, '-m', 'pytest', '-q', str(self.test_script), '-p', 'no:cacheprovider'],
-                    cwd=self.repo,
-                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                )
-                Path(f'{log_path}.tests.txt').write_text(tests.stdout)
-                test_return_code = tests.returncode
+                build_root = Path(__file__).resolve().parents[3]
+                tests = json.loads(_docker(
+                    str(self.test_script), self.repo, build_root,
+                    build_root / 'docker/test/Dockerfile',
+                    shlex.join(['python', '-m', 'pytest', '-q', str(self.test_script),
+                                '-p', 'no:cacheprovider']),
+                ))
+                Path(f'{log_path}.tests.txt').write_text(tests['output'])
+                test_return_code = tests['returncode']
                 status = 'tests_failed'
-                if tests.returncode == 0:
+                if test_return_code == 0:
                     after_values = self.measure()
                     accepted = (
                         all(after_values[metric] <= before.values[metric] for metric in self.metrics)

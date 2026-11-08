@@ -1,6 +1,8 @@
 """Exercise evaluated runs against the installed Depencity CLI and real tests."""
 
 import json
+import shlex
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -13,6 +15,21 @@ from agent_runner.runner import main
 ORIGINAL = 'left = 1\nright = 2\nvalue = left + right\n'
 IMPROVED = 'value = 3\n'
 WORSE = 'left = 1\nright = 2\nfirst = left + right\nvalue = first * left\n'
+
+
+@pytest.fixture(autouse=True)
+def docker_backend(monkeypatch):
+    # The suite already runs inside Docker; replace nested Docker at its boundary.
+    def run_tests(path, workspace_root, build_root, dockerfile, command):
+        assert (workspace_root / path).is_file()
+        assert dockerfile == build_root / 'docker/test/Dockerfile'
+        result = subprocess.run(
+            shlex.split(command), cwd=workspace_root,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        return json.dumps({'returncode': result.returncode, 'output': result.stdout})
+
+    monkeypatch.setattr('agent_runner.evaluator._docker', run_tests)
 
 
 def prepare(tmp_path):
@@ -64,7 +81,7 @@ def test_evaluated_iterations_keep_only_passing_metric_improvements(tmp_path, mo
     assert not (repo / '.git').exists()
 
 
-@pytest.mark.parametrize('failure', ['tests', 'syntax', 'agent', 'exception'])
+@pytest.mark.parametrize('failure', ['tests', 'syntax', 'agent', 'exception', 'docker'])
 def test_evaluated_failures_restore_target_and_stop(tmp_path, monkeypatch, failure):
     repo, logs, arguments = prepare(tmp_path)
     calls = []
@@ -77,13 +94,19 @@ def test_evaluated_failures_restore_target_and_stop(tmp_path, monkeypatch, failu
         return CodexResult(7 if failure == 'agent' else 0, 'candidate')
 
     monkeypatch.setattr(Codex, 'run', run_agent)
+    if failure == 'docker':
+        def unavailable(*args):
+            raise RuntimeError('Docker daemon is unavailable')
+        monkeypatch.setattr('agent_runner.evaluator._docker', unavailable)
     result = CliRunner().invoke(main, arguments)
     assert result.exit_code == 1, result.output
     assert calls == ['agent-01.1']
     assert (repo / 'target.py').read_text() == ORIGINAL
     workspace, = logs.glob('*/workspace')
     assert (workspace / 'target.py').read_text() == ORIGINAL
-    if failure != 'exception':
+    if failure == 'docker':
+        assert 'Docker daemon is unavailable' in str(result.exception)
+    if failure not in ('exception', 'docker'):
         report, = logs.rglob('*.evaluation.json')
         report = json.loads(report.read_text())
         assert report['accepted'] is False

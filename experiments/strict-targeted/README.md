@@ -10,7 +10,8 @@ uv run agent-runner run --depencity-eval \
 
 The runner copies the target and test file into its run directory. Originals stay
 untouched; logs, diffs, measurements, and accepted snapshots are saved alongside
-the workspace. The ten-attempt search prompt lives in `task.md`.
+the workspace. The prompt in `task.md` requests only the expression-path metric
+and requires internal attempts until a tested strict improvement is found.
 
 Run `uv sync` after updating `../depencity`. The agent uses normal Codex
 configuration; evaluation uses the Depencity CLI and pytest.
