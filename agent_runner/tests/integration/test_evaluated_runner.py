@@ -51,7 +51,7 @@ def prepare(tmp_path):
     return repo, logs, arguments
 
 
-def test_evaluated_iterations_keep_only_passing_metric_improvements(tmp_path, monkeypatch):
+def test_evaluated_iterations_progress_regardless_of_metrics(tmp_path, monkeypatch):
     repo, logs, arguments = prepare(tmp_path)
     starts = []
     candidates = iter([IMPROVED, WORSE, IMPROVED])
@@ -66,13 +66,13 @@ def test_evaluated_iterations_keep_only_passing_metric_improvements(tmp_path, mo
     monkeypatch.setattr(Codex, 'run', run_agent)
     result = CliRunner().invoke(main, arguments)
     assert result.exit_code == 0, result.output
-    assert starts == [ORIGINAL, IMPROVED, IMPROVED]
+    assert starts == [ORIGINAL, IMPROVED, WORSE]
     assert (repo / 'target.py').read_text() == ORIGINAL
     workspace, = logs.glob('*/workspace')
     assert (workspace / 'target.py').read_text() == IMPROVED
     reports = [json.loads(path.read_text()) for path in sorted(logs.rglob('*.evaluation.json'))]
-    assert [report['status'] for report in reports] == ['accepted', 'rejected', 'rejected']
-    assert [(report['before']['graph.paths.expressions.count'], report['after']['graph.paths.expressions.count']) for report in reports] == [(2, 1), (1, 3), (1, 1)]
+    assert [report['status'] for report in reports] == ['accepted', 'accepted', 'accepted']
+    assert [(report['before']['graph.paths.expressions.count'], report['after']['graph.paths.expressions.count']) for report in reports] == [(2, 1), (1, 3), (3, 1)]
     run_dir, = logs.iterdir()
     assert (run_dir / 'agent-01.2.diff').read_text()
     assert (run_dir / 'agent-01.2.candidate.py').read_text() == WORSE
@@ -148,13 +148,8 @@ def test_evaluation_requires_target_and_tests(tmp_path, options):
     assert not (tmp_path / 'logs').exists()
 
 
-@pytest.mark.parametrize('after, accepted', [
-    ((1, 3), True),
-    ((2, 2), True),
-    ((1, 4), False),
-    ((2, 3), False),
-])
-def test_repeatable_metrics_require_improvement_without_regression(tmp_path, monkeypatch, after, accepted):
+@pytest.mark.parametrize('after', [(1, 3), (2, 2), (1, 4), (2, 3)])
+def test_repeatable_metrics_record_changes_without_filtering(tmp_path, monkeypatch, after):
     from agent_runner.evaluator import Evaluator
 
     repo, logs, arguments = prepare(tmp_path)
@@ -177,10 +172,11 @@ def test_repeatable_metrics_require_improvement_without_regression(tmp_path, mon
     report_path, = logs.rglob('*.evaluation.json')
     report = json.loads(report_path.read_text())
     assert report['metrics'] == list(metrics)
-    assert report['accepted'] == accepted
+    assert report['accepted'] is True
+    assert report['after'] == dict(zip(metrics, after))
     assert (repo / 'target.py').read_text() == ORIGINAL
     workspace, = logs.glob('*/workspace')
-    assert (workspace / 'target.py').read_text() == (IMPROVED if accepted else ORIGINAL)
+    assert (workspace / 'target.py').read_text() == IMPROVED
 
 
 def test_evaluated_runner_copies_only_target_and_test_script(tmp_path, monkeypatch):
@@ -246,7 +242,7 @@ def test_comparison_runs_variants_in_parallel_and_continues(tmp_path, monkeypatc
     for variant in ('plain', 'depencity'):
         assert (root / variant / 'target.py').read_text() == IMPROVED
         report = json.loads((root / variant / f'{variant}.2.evaluation.json').read_text())
-        assert report['status'] == 'rejected'
+        assert report['status'] == 'accepted'
 
 
 def test_comparison_continue_restores_interrupted_candidate(tmp_path, monkeypatch):

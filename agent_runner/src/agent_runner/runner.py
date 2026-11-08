@@ -39,11 +39,11 @@ def _common_options(command):
 
 @main.command()
 @click.option('--iterations', type=click.IntRange(1, 1000), default=1, show_default=True)
-@click.option('--depencity-eval', is_flag=True, help='Keep only tested Depencity metric improvements.')
+@click.option('--depencity-eval', is_flag=True, help='Measure Depencity metrics and validate changes with Docker tests.')
 @click.option('--target', type=click.Path(path_type=Path), help='Python file to evaluate, relative to --repo.')
 @click.option('--metric', 'metrics', multiple=True,
               default=('graph.paths.expressions.count',), show_default=True,
-              help='Metric to minimize; repeat to select several.')
+              help='Metric to record; repeat to select several.')
 @click.option('--test-script', type=click.Path(path_type=Path), help='Pytest file to copy and run, relative to --repo.')
 @_common_options
 @cli_errors
@@ -72,7 +72,7 @@ def run(repo, task, model, iterations, log_root, depencity_eval, target, metrics
 @_common_options
 @cli_errors
 def run_experiment(repo, log_root, resume, **settings):
-    """Compare plain and Depencity workers in parallel, keeping tested improvements."""
+    """Run plain and Depencity workers in parallel, recording metrics without filtering."""
     repo = repo.resolve()
     settings['repo'] = str(repo)
     settings['metrics'] = list(settings['metrics'])

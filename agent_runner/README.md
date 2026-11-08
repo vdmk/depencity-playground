@@ -33,8 +33,8 @@ branches and commits remain available for review. Uncommitted changes preserve
 the worktree. Nothing merges automatically.
 
 Use `--depencity-eval` to copy the target and test script into an isolated
-workspace and keep tested metric improvements. Original files stay untouched. Repeat `--metric` to
-select several: none may increase, and at least one must decrease.
+workspace and record metrics. Original files stay untouched. Repeat `--metric` to
+record several. Passing changes carry forward even when metrics increase.
 
 ```sh
 agent-runner run --depencity-eval --target calculator.py --iterations 3 \
@@ -42,7 +42,7 @@ agent-runner run --depencity-eval --target calculator.py --iterations 3 \
 ```
 
 `run-experiment` runs the same prompt in parallel under `plain/` and `depencity/`;
-only Depencity gets profiling tools. Both keep improvements verified with original tests in Docker.
+only Depencity gets profiling tools. Both keep all changes that pass original tests in Docker.
 
 ```sh
 agent-runner run-experiment --repo experiments/fixtures --target calculator.py \

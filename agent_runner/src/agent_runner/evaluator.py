@@ -1,4 +1,4 @@
-"""Measure file refactorings and retain tested metric improvements."""
+"""Measure file refactorings and retain changes that pass tests."""
 
 import difflib
 import json
@@ -74,11 +74,8 @@ class Evaluator:
                 status = 'tests_failed'
                 if test_return_code == 0:
                     after_values = self.measure()
-                    accepted = (
-                        all(after_values[metric] <= before.values[metric] for metric in self.metrics)
-                        and any(after_values[metric] < before.values[metric] for metric in self.metrics)
-                    )
-                    status = 'accepted' if accepted else 'rejected'
+                    accepted = True
+                    status = 'accepted'
             report = {
                 'target': str(self.target), 'metrics': self.metrics,
                 'before': before.values, 'after': after_values, 'accepted': accepted,
