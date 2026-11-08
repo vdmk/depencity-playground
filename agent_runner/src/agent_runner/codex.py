@@ -38,6 +38,7 @@ class Codex:
             self.codex,
             'exec',
             '--ephemeral',
+            '--skip-git-repo-check',
             '--json',
         ]
         command.extend([

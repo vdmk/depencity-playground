@@ -1,45 +1,16 @@
-# Strict targeted multi-pass benchmark
-
-Run repeated sequential refactoring turns for the MCP-enabled agent against the
-calculator fixture. The agent optimizes only expression-path count and keeps one
-private copied workspace; the next turn starts from the previous accepted edit.
-
-The ignored output directory preserves every turn's JSONL log, response, profile,
-test result, and diff. Step 1 compares the original file with the first edit;
-each later step compares the previous step with the current step.
-
-The shared runner can execute this workflow directly, without importing the
-experiment script. Prepare a copy of the fixture, then run it from the repository
-root:
+# Strict targeted calculator experiment
 
 ```sh
-mkdir -p out/experiments/calculator
-cp experiments/fixtures/calculator.py experiments/fixtures/test_calculator.py out/experiments/calculator/
 uv run agent-runner run --depencity-eval \
-  --repo out/experiments/calculator --target calculator.py --iterations 3 \
-  --metric graph.paths.expressions.count \
-  --test-command 'python -m pytest -q test_calculator.py -p no:cacheprovider' \
-  --log-root /tmp/calculator-evaluations
+  --repo experiments/fixtures --target calculator.py --test-script test_calculator.py \
+  --iterations 3 --metric graph.paths.expressions.count \
+  --task "$(cat experiments/strict-targeted/task.md)" \
+  --log-root "$PWD/out/experiments/strict-targeted"
 ```
 
-The new command uses the normal Codex configuration and runs tests with the
-supplied command. Configure Depencity MCP there if the agent should use it during
-its search. The evaluator uses the local Depencity CLI independently.
+The runner copies the target and test file into its run directory. Originals stay
+untouched; logs, diffs, measurements, and accepted snapshots are saved alongside
+the workspace. The ten-attempt search prompt lives in `task.md`.
 
-The original script remains available for its ten-attempt prompt, Docker test
-setup, and resume behavior:
-
-```sh
-uv run python experiments/strict-targeted/run.py --turns 3
-```
-
-The environment uses the editable `../depencity` package configured in the root
-`pyproject.toml`. Run `uv sync` after updating that checkout.
-
-The target metric is still `graph.paths.expressions.count`. The current profile
-API returns aggregate values under `scopes[].profile` and direct values under
-`own_profile`; `detail='compact'` is no longer supported. This experiment selects
-`scope='__module__'` with `include_children=True`, `include_own_profile=True`, and
-`metrics=['graph.paths.expressions.count']`. Acceptance compares the module's
-aggregate value, including all descendants, and requires the calculator tests
-to pass. Missing metrics raise an error rather than silently defaulting to zero.
+Run `uv sync` after updating `../depencity`. The agent uses normal Codex
+configuration; evaluation uses the Depencity CLI and pytest.

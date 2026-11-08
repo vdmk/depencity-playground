@@ -31,12 +31,13 @@ ends (after each fresh iteration or after the whole incremental worker);
 branches and commits remain available for review. Uncommitted changes preserve
 the worktree. Nothing merges automatically.
 
-Use `--depencity-eval` to keep tested metric improvements. Repeat `--metric` to
+Use `--depencity-eval` to copy the target and test script into an isolated
+workspace and keep tested metric improvements. Original files stay untouched. Repeat `--metric` to
 select several: none may increase, and at least one must decrease.
 
 ```sh
 agent-runner run --depencity-eval --target calculator.py --iterations 3 \
-  --test-command 'python -m pytest -q test_calculator.py' --log-root /tmp/agent-runs
+  --test-script test_calculator.py --log-root /tmp/agent-runs
 ```
 
 The runner asks each worker to leave changes uncommitted and finish with a short

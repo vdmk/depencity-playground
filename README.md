@@ -23,7 +23,7 @@ Other preserved comparisons:
 
 ```sh
 uv run experiments/single-pass/run.py
-uv run experiments/strict-targeted/run.py --help
+uv run agent-runner run --help
 ```
 
 Runner documentation: [agent_runner/README.md](agent_runner/README.md).

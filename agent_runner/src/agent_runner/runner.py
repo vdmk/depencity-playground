@@ -7,7 +7,6 @@ import click
 
 from agent_runner.cli_utils import cli_errors
 from agent_runner.codex import Codex
-from agent_runner.evaluator import Evaluator
 from agent_runner.runners.evaluated import EvaluatedRunner
 from agent_runner.runners.fresh import FreshRunner
 from agent_runner.runners.incremental import IncrementalRunner
@@ -43,18 +42,17 @@ def _common_options(command):
 @click.option('--metric', 'metrics', multiple=True,
               default=('graph.paths.expressions.count',), show_default=True,
               help='Metric to minimize; repeat to select several.')
-@click.option('--test-command', help='Test command run in --repo (without shell expansion).')
+@click.option('--test-script', type=click.Path(path_type=Path), help='Pytest file to copy and run, relative to --repo.')
 @_common_options
 @cli_errors
-def run(repo, task, model, iterations, log_root, depencity_eval, target, metrics, test_command) -> None:
+def run(repo, task, model, iterations, log_root, depencity_eval, target, metrics, test_script) -> None:
     """Run cumulative iterations in the supplied directory without Git commits."""
-    if depencity_eval and (target is None or test_command is None):
-        raise click.UsageError('--depencity-eval requires --target and --test-command')
+    if depencity_eval and (target is None or test_script is None):
+        raise click.UsageError('--depencity-eval requires --target and --test-script')
     repo, log_root, _ = _build_context(repo, log_root)
     codex = Codex(model, log_root)
     if depencity_eval:
-        evaluator = Evaluator(repo, target, metrics, test_command)
-        runner = EvaluatedRunner(codex, repo, task, iterations, evaluator)
+        runner = EvaluatedRunner(codex, repo, task, iterations, target, metrics, test_script)
     else:
         runner = InPlaceRunner(codex, repo, task, iterations)
     successful = runner.run()

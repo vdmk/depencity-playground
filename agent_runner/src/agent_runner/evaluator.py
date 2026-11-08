@@ -2,9 +2,9 @@
 
 import difflib
 import json
-import shlex
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,13 +16,13 @@ class Snapshot:
 
 
 class Evaluator:
-    """Evaluate one Python file using Depencity and a caller-supplied test command."""
+    """Evaluate one Python file using Depencity and a pytest script."""
 
-    def __init__(self, repo, target, metrics, test_command):
+    def __init__(self, repo, target, metrics, test_script):
         self.repo = repo
         self.target = (repo / target).resolve()
         self.metrics = metrics
-        self.test_command = test_command
+        self.test_script = test_script
 
     def measure(self):
         executable = shutil.which('depencity')
@@ -57,7 +57,8 @@ class Evaluator:
             status = 'agent_failed'
             if agent_return_code == 0:
                 tests = subprocess.run(
-                    shlex.split(self.test_command), cwd=self.repo,
+                    [sys.executable, '-m', 'pytest', '-q', str(self.test_script), '-p', 'no:cacheprovider'],
+                    cwd=self.repo,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                 )
                 Path(f'{log_path}.tests.txt').write_text(tests.stdout)
