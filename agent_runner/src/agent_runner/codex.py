@@ -40,7 +40,23 @@ class Codex:
             '--ephemeral',
             '--skip-git-repo-check',
             '--json',
+            '--ignore-user-config',
         ]
+        project = Path(__file__).resolve().parents[3]
+        command.extend(_create_mcp_server_options(
+            'depencity', [
+                'run', '--project', str(project), 'depencity-mcp',
+                '--workspace', str(work_dir),
+            ], work_dir, ['profile'],
+        ))
+        command.extend(_create_mcp_server_options(
+            'agent-runner', [
+                'run', '--project', str(project), 'agent-runner-mcp',
+                '--workspace', str(work_dir),
+                '--build-root', str(project),
+                '--dockerfile', 'docker/test/Dockerfile',
+            ], work_dir, ['docker'],
+        ))
         command.extend([
             '--sandbox',
             'workspace-write',
@@ -63,3 +79,28 @@ class Codex:
             return CodexResult(result.returncode, '')
         summary = json.loads(summary_path.read_text())['short_summary'].strip()
         return CodexResult(result.returncode, summary)
+
+
+def _create_mcp_server_options(
+    name: str,
+    arguments: list[str],
+    worktree: Path,
+    enabled_tools: list[str] | None = None,
+) -> list[str]:
+    server = f'mcp_servers.{name}'
+    options = [
+        '--config',
+        f'{server}.command="uv"',
+        '--config',
+        f'{server}.args=' + json.dumps(arguments),
+        '--config',
+        f'{server}.cwd={json.dumps(str(worktree))}',
+        '--config',
+        f'{server}.default_tools_approval_mode="approve"',
+    ]
+    if enabled_tools is not None:
+        options.extend([
+            '--config',
+            f'{server}.enabled_tools=' + json.dumps(enabled_tools),
+        ])
+    return options

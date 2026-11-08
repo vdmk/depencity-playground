@@ -1,7 +1,8 @@
 # agent-runner
 
-Run Codex iterations in any directory. Supply the task and use the project's normal
-Codex configuration. The runner records output; evaluation is separate.
+Run Codex iterations in any directory. Supply the task; workers use the runner's
+explicit MCP configuration with their own workspace and the runner's build root.
+The runner records output; evaluation is separate.
 
 ```sh
 agent-runner run --iterations 20 --log-root /tmp/agent-runs

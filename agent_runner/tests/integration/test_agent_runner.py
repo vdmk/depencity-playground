@@ -111,10 +111,22 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
         arguments = (capture_dir / f'{name}.iteration-1.args').read_text().splitlines()
         next_arguments = (capture_dir / f'{name}.iteration-2.args').read_text().splitlines()
         assert '--ephemeral' in arguments
-        assert '--ignore-user-config' not in arguments
+        assert '--ignore-user-config' in arguments
         assert arguments[arguments.index('--sandbox') + 1] == 'workspace-write'
         assert 'approval_policy="on-request"' in arguments
-        assert not any(value.startswith('mcp_servers.') for value in arguments)
+        settings = dict(value.split('=', 1) for value in arguments if value.startswith('mcp_servers.'))
+        project = str(Path(__file__).resolve().parents[3])
+        assert json.loads(settings['mcp_servers.depencity.args']) == [
+            'run', '--project', project, 'depencity-mcp', '--workspace', str(first_worktree),
+        ]
+        assert json.loads(settings['mcp_servers.agent-runner.args']) == [
+            'run', '--project', project, 'agent-runner-mcp', '--workspace', str(first_worktree),
+            '--build-root', project, '--dockerfile', 'docker/test/Dockerfile',
+        ]
+        for server, tool in [('depencity', 'profile'), ('agent-runner', 'docker')]:
+            assert json.loads(settings[f'mcp_servers.{server}.cwd']) == str(first_worktree)
+            assert json.loads(settings[f'mcp_servers.{server}.enabled_tools']) == [tool]
+            assert json.loads(settings[f'mcp_servers.{server}.default_tools_approval_mode']) == 'approve'
         assert arguments[arguments.index('--model') + 1] == 'gpt-6-luna'
         task = arguments[-1]
         assert task.startswith('Make one coherent, behavior-preserving refactoring.')
