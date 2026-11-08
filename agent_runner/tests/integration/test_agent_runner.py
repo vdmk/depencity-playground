@@ -12,10 +12,6 @@ from agent_runner import git as worker_git
 from agent_runner import codex as codex_execution
 
 
-def _write_summary(log_name, message='simplify calculator parsing'):
-    Path(f'{log_name}.summary.json').write_text(json.dumps({'short_summary': message}))
-
-
 def _write_codex(path, script):
     summary_output = (
         'previous=""\n'
@@ -160,7 +156,7 @@ def test_runner_passes_same_task_to_all_workers(tmp_path, monkeypatch):
     def run_agent(_self, log_name, _worktree, task):
         name = log_name.name.rsplit('.', 1)[0]
         tasks[name] = task
-        return 1
+        return codex_execution.CodexResult(1, '')
 
     monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: '/codex')
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
@@ -215,14 +211,13 @@ def test_runner_uses_latest_starting_branch_tip_for_later_iterations(tmp_path, m
         if run_index == 2:
             assert (worktree / 'accepted.py').exists()
         if run_index == 1:
-            _write_summary(log_name)
             (worktree / 'accepted.py').write_text('accepted = True\n')
             _run_git(worktree, 'add', 'accepted.py')
             _run_git(worktree, 'commit', '-m', 'refactor: accepted change')
             commit = _run_git(worktree, 'rev-parse', 'HEAD')
             _run_git(repo, 'cherry-pick', commit)
-            return 0
-        return 1
+            return codex_execution.CodexResult(0, 'simplify calculator parsing')
+        return codex_execution.CodexResult(1, '')
 
     monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: '/codex')
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
@@ -332,9 +327,8 @@ def test_runner_stops_relaunching_after_first_interrupt(tmp_path, monkeypatch):
 
     def interrupt_agent(_self, log_name, *_args):
         calls.append(log_name.name.rsplit('.', 1)[0])
-        _write_summary(log_name)
         os.kill(os.getpid(), signal.SIGINT)
-        return 0
+        return codex_execution.CodexResult(0, 'simplify calculator parsing')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', interrupt_agent)
 
@@ -376,7 +370,7 @@ def test_runner_continues_when_one_agent_cannot_create_worktree(tmp_path, monkey
 
     def run_agent(_self, log_name, *_args):
         started_agents.append(log_name.name.rsplit('.', 1)[0])
-        return 1
+        return codex_execution.CodexResult(1, '')
 
     monkeypatch.setattr(worker_git, 'create_worktree', create_agent_worktree)
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
@@ -440,8 +434,7 @@ def test_sequential_stops_and_preserves_failed_turn(tmp_path, monkeypatch, failu
     def run_agent(_self, log_name, worktree, *_args):
         calls.append(int(log_name.name.rsplit('.', 1)[1]))
         (worktree / 'module.py').write_text('incomplete = True\n')
-        _write_summary(log_name)
-        return 1 if failure == 'nonzero' else 0
+        return codex_execution.CodexResult(1 if failure == 'nonzero' else 0, 'simplify parsing')
 
     monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: 'codex')
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
@@ -462,8 +455,7 @@ def test_sequential_can_use_git(tmp_path, monkeypatch):
 
     def run_agent(_self, log_name, workspace, *_args):
         workspaces.append(workspace)
-        _write_summary(log_name)
-        return 0
+        return codex_execution.CodexResult(0, 'simplify calculator parsing')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
     result = CliRunner().invoke(agent_runner.main, [
@@ -479,9 +471,8 @@ def test_single_worker_without_git_works_outside_git(tmp_path, monkeypatch):
 
     def run_agent(_self, log_name, workspace, task):
         workspaces.append(workspace)
-        _write_summary(log_name)
         assert task.startswith('Do the task Do not commit changes')
-        return 0
+        return codex_execution.CodexResult(0, 'simplify calculator parsing')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
     result = CliRunner().invoke(agent_runner.main, [
@@ -522,8 +513,7 @@ def test_runner_uses_configured_log_root(tmp_path, monkeypatch, relative):
 
     def run_agent(_self, log_name, _workspace, _task):
         captured.append(log_name)
-        _write_summary(log_name)
-        return 0
+        return codex_execution.CodexResult(0, 'simplify calculator parsing')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
     result = CliRunner().invoke(agent_runner.main, [
@@ -582,28 +572,28 @@ def test_runner_commits_with_summary_only_when_worktrees_enabled(tmp_path, monke
         assert _run_git(repo, 'status', '--porcelain')
 
 
-@pytest.mark.parametrize('summary', [None, 'refactor: unfinished change'])
-def test_runner_preserves_uncommitted_work_on_missing_summary_or_failure(tmp_path, monkeypatch, summary):
+@pytest.mark.parametrize('return_code', [0, 1])
+def test_runner_preserves_uncommitted_work_on_missing_summary_or_failure(tmp_path, monkeypatch, return_code):
     repo = tmp_path / 'repo'
     _create_repository(repo)
     base = _run_git(repo, 'rev-parse', 'HEAD')
-    workspaces = []
-
-    def run_agent(_self, log_name, workspace, _task):
-        workspaces.append(workspace)
-        (workspace / 'module.py').write_text('unfinished = True\n')
-        if summary is not None:
-            Path(f'{log_name}.summary.json').write_text(json.dumps({'short_summary': summary}))
-        return 1 if summary == 'refactor: unfinished change' else 0
-
-    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
+    codex = tmp_path / 'codex'
+    codex.write_text(
+        '#!/bin/sh\n'
+        'printf "unfinished = True\\n" > module.py\n'
+        f'exit {return_code}\n'
+    )
+    codex.chmod(0o755)
+    monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
     result = CliRunner().invoke(agent_runner.main, [
         'run', '--repo', str(repo), '--use-git', '--iterations', '2',
     ])
     assert result.exit_code == 1, result.output
-    workspace, = workspaces
+    workspace, = (repo / '.worktrees').rglob('iteration-*')
     assert (workspace / 'module.py').read_text() == 'unfinished = True\n'
     assert _run_git(workspace, 'rev-parse', 'HEAD') == base
+    if return_code == 1:
+        assert 'stopped after nonzero exit' in result.output
 
 
 def test_concurrent_workers_require_git(tmp_path, monkeypatch):
