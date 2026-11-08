@@ -1,5 +1,5 @@
 """Run Codex turns, optionally in isolated Git worktrees."""
-
+import json
 import os
 import signal
 import subprocess
@@ -99,15 +99,18 @@ class Runner:
         for iteration in range(1, self.iterations + 1):
             if self.stopping:
                 break
-            log_name = self.log_root / f'{name}.{iteration}'
-            with self.git.create_branch(name, iteration, Path(f'{log_name}.summary.json')) as branch:
+            log_path = self.log_root / f'{name}.{iteration}'
+
+            with self.git.create_workspace_branch(name, iteration) as branch:
                 click.echo(f'{name}.{iteration}: launching')
-                returncode = self.codex.run(log_name, branch.work_dir, self.task)
-                click.echo(f'{log_name.name}: finished with return code {returncode}')
-                if returncode != 0:
+                return_code = self.codex.run(log_path, branch.work_dir, self.task)
+                click.echo(f'{name}.{iteration}: finished with return code {return_code}')
+                if return_code != 0:
                     click.echo(f'{name}: stopped after nonzero exit')
                     return False
-                branch.commit()
+                summary_path = Path(f'{log_path}.summary.json')
+                summary = json.loads(summary_path.read_text())['short_summary'].strip()
+                branch.commit(summary)
         return True
 
 

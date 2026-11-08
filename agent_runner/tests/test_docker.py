@@ -1,4 +1,4 @@
-from agent_runner.docker_test import docker_build_command, docker_command
+from agent_runner.docker import docker_build_command, docker_command
 
 
 def test_docker_command_is_read_only_and_network_disabled(tmp_path):

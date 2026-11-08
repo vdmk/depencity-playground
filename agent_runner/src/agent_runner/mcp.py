@@ -12,7 +12,7 @@ import click
 from fastmcp import Context, FastMCP
 from fastmcp.server.lifespan import lifespan
 
-from .docker_test import (
+from .docker import (
     DEFAULT_BUILD_IMAGE,
     docker_build_command,
     docker_command,
@@ -59,18 +59,18 @@ def create_server(
         }
 
     mcp = FastMCP('agent-runner', lifespan=app_lifespan)
-    mcp.tool(docker_test)
+    mcp.tool(docker)
     return mcp
 
 
-async def docker_test(
+async def docker(
     ctx: Context,
     path: str,
     command: str | None = None,
 ) -> str:
     config = ctx.lifespan_context
     return await asyncio.to_thread(
-        _docker_test,
+        _docker,
         path,
         config['workspace_root'],
         config['build_root'],
@@ -80,7 +80,7 @@ async def docker_test(
     )
 
 
-def _docker_test(
+def _docker(
     path: str,
     workspace_root: Path,
     build_root: Path,

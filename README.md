@@ -29,7 +29,7 @@ uv run experiments/strict-targeted/run.py --help
 Runner documentation: [agent_runner/README.md](agent_runner/README.md).
 Profile preferences: [agent-runner-files/target.json](agent-runner-files/target.json).
 
-Validate the runner through `agent-runner-mcp`'s `docker_test` tool, with build
+Validate the runner through `agent-runner-mcp`'s `docker` tool, with build
 root set to this directory, Dockerfile `docker/test/Dockerfile`, and command:
 `pytest -q agent_runner/tests -p no:cacheprovider --import-mode=importlib -n 2`.
 Test containers run with networking disabled.

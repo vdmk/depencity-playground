@@ -1,6 +1,5 @@
 """Manage temporary worktrees while preserving their branches."""
 
-import json
 import subprocess
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
@@ -18,23 +17,21 @@ class NoBranch:
     def __init__(self, work_dir: Path) -> None:
         self.work_dir = work_dir
 
-    def commit(self):
+    def commit(self, message: str):
         pass
 
 
-class Branch(NoBranch):
-    """An isolated working directory and its commit summary."""
+class Branch:
+    """An isolated working directory that can commit its changes."""
 
-    def __init__(self, work_dir: Path, summary_path: Path) -> None:
-        super().__init__(work_dir)
-        self.summary_path = summary_path
+    def __init__(self, work_dir: Path) -> None:
+        self.work_dir = work_dir
 
-    def commit(self):
+    def commit(self, message: str):
         if not run_git(self.work_dir, 'status', '--porcelain'):
             return
-        summary = json.loads(self.summary_path.read_text())['short_summary'].strip()
         run_git(self.work_dir, 'add', '--all')
-        message = f'auto-refactor: {summary}'
+        message = f'auto-refactor: {message}'
         run_git(self.work_dir, 'commit', '-m', message)
         click.echo(f'Committed changes: {message}')
 
@@ -44,7 +41,7 @@ class NoGit:
     def __init__(self, work_dir: Path) -> None:
         self.work_dir = work_dir
 
-    def create_branch(self, name, iteration, summary_path):
+    def create_workspace_branch(self, name, iteration):
         return nullcontext(NoBranch(self.work_dir))
 
 
@@ -61,14 +58,14 @@ class Git:
         self.lock = Lock()
 
     @contextmanager
-    def create_branch(self, name, iteration, summary_path):
+    def create_workspace_branch(self, name, iteration):
         base = self.base
         if iteration > 1 and self.base_ref != 'HEAD':
             base = run_git(self.repo, 'rev-parse', self.base_ref)
         with self.lock:
             workspace = create_worktree(self.repo, self.root, name, iteration, base)
         try:
-            yield Branch(workspace, summary_path)
+            yield Branch(workspace)
         finally:
             dirty = bool(run_git(workspace, 'status', '--porcelain'))
             if not dirty:

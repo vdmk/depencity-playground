@@ -48,7 +48,7 @@ For each refactoring iteration:
 3. Keep data and graph compatibility: preserve dependency meaning, node/edge
    direction, metric names, and public behavior. Extend fixture coverage
    when the change closes a previously untested analyzer case; do not add unit tests.
-4. Run both package test suites through the local MCP `docker_test` tool with
+4. Run both package test suites through the local MCP `docker` tool with
    two `pytest-xdist` workers:
    `env PYTHONPATH=/workspace/depencity/src:/workspace/agent_runner/src pytest -q depencity/tests agent_runner/tests -p no:cacheprovider --import-mode=importlib -n 2`.
    Do not run `pytest` directly on the host.
@@ -79,7 +79,7 @@ assistant. A commit is a reversible checkpoint, not an automatic approval.
 For every accepted iteration:
 
 1. Write only inside the MCP workspace boundary and inspect the current diff.
-2. Run relevant tests and the complete suite through MCP `docker_test`; do not
+2. Run relevant tests and the complete suite through MCP `docker`; do not
    invoke host `pytest`.
 3. Capture before/after compact profiles and include the meaningful metric deltas
    with the change summary.
@@ -87,7 +87,7 @@ For every accepted iteration:
 5. Leave the commit available for human review; do not merge, push, or silently
    amend it. A reviewer may keep or revert that specific commit afterward.
 
-Always use the MCP `docker_test` tool for validation, with the in-workspace
+Always use the MCP `docker` tool for validation, with the in-workspace
 `docker/test/Dockerfile` and an explicit command such as
 `env PYTHONPATH=/workspace/depencity/src:/workspace/agent_runner/src pytest -q depencity/tests agent_runner/tests -p no:cacheprovider --import-mode=importlib -n 2`.
 The Dockerfile may install
@@ -137,7 +137,7 @@ git worktree add .worktrees/codex-batch/<run>/agent-1/iteration-1 -b codex-batch
 # using a focused `refactor:` message.
 git switch main
 git cherry-pick <worker-commit>
-# run MCP docker_test; never run host pytest
+# run MCP docker; never run host pytest
 
 # after resolving a conflict:
 git cherry-pick --continue
@@ -156,9 +156,9 @@ uses it to commit when worktrees are enabled. Worker commits are not
 automatically moved to `main`.
 
 Workers read the local ledger directly to search prior decisions and use
-`docker_test` to run tests. The runner creates their Git checkpoints from the returned summary.
+`docker` to run tests. The runner creates their Git checkpoints from the returned summary.
 The coordinator uses only
-`docker_test`; it does not create commits through the
+`docker`; it does not create commits through the
 agent-runner MCP. Append each decision directly to
 `agent-runner-files/reviewed.jsonl` using the format above.
 

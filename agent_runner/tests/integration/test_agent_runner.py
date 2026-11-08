@@ -12,6 +12,23 @@ from agent_runner import git as worker_git
 from agent_runner import codex as codex_execution
 
 
+def _write_summary(log_name, message='simplify calculator parsing'):
+    Path(f'{log_name}.summary.json').write_text(json.dumps({'short_summary': message}))
+
+
+def _write_codex(path, script):
+    summary_output = (
+        'previous=""\n'
+        'for argument in "$@"; do\n'
+        '  if [ "$previous" = "--output-last-message" ]; then\n'
+        '    printf \'{"short_summary":"simplify calculator parsing"}\\n\' > "$argument"\n'
+        '  fi\n'
+        '  previous="$argument"\n'
+        'done\n'
+    )
+    path.write_text(script.replace('#!/bin/sh\n', '#!/bin/sh\n' + summary_output, 1))
+
+
 def _invoke_run(arguments):
     return CliRunner().invoke(agent_runner.main, [
         'run', '--use-git',
@@ -57,7 +74,7 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
     capture_dir.mkdir()
     monkeypatch.setenv('CODEX_CAPTURE_DIR', str(capture_dir))
     codex = tmp_path / 'codex'
-    codex.write_text(
+    _write_codex(codex,
         '#!/bin/sh\n'
         'name="$(basename "$(dirname "$PWD")")"\n'
         'iteration="$(basename "$PWD")"\n'
@@ -167,7 +184,7 @@ def test_runner_uses_checked_out_commit_as_worktree_base(tmp_path, monkeypatch):
     capture_dir.mkdir()
     monkeypatch.setenv('CODEX_CAPTURE_DIR', str(capture_dir))
     codex = tmp_path / 'codex'
-    codex.write_text(
+    _write_codex(codex,
         '#!/bin/sh\n'
         '[ -f review_only.py ] && touch "$CODEX_CAPTURE_DIR/review-base-seen"\n'
         'exit 1\n'
@@ -198,6 +215,7 @@ def test_runner_uses_latest_starting_branch_tip_for_later_iterations(tmp_path, m
         if run_index == 2:
             assert (worktree / 'accepted.py').exists()
         if run_index == 1:
+            _write_summary(log_name)
             (worktree / 'accepted.py').write_text('accepted = True\n')
             _run_git(worktree, 'add', 'accepted.py')
             _run_git(worktree, 'commit', '-m', 'refactor: accepted change')
@@ -228,7 +246,7 @@ def test_runner_retires_failed_agents_and_relaunches_remaining_agents(tmp_path, 
     capture_dir.mkdir()
     monkeypatch.setenv('CODEX_CAPTURE_DIR', str(capture_dir))
     codex = tmp_path / 'codex'
-    codex.write_text(
+    _write_codex(codex,
         '#!/bin/sh\n'
         'name="$(basename "$(dirname "$PWD")")"\n'
         'touch "$CODEX_CAPTURE_DIR/$name.started"\n'
@@ -268,7 +286,7 @@ def test_agents_relaunch_independently(tmp_path, monkeypatch):
     capture_dir.mkdir()
     monkeypatch.setenv('CODEX_CAPTURE_DIR', str(capture_dir))
     codex = tmp_path / 'codex'
-    codex.write_text(
+    _write_codex(codex,
         '#!/bin/sh\n'
         'name="$(basename "$(dirname "$PWD")")"\n'
         'if [ "$name" = agent-01 ]; then\n'
@@ -314,6 +332,7 @@ def test_runner_stops_relaunching_after_first_interrupt(tmp_path, monkeypatch):
 
     def interrupt_agent(_self, log_name, *_args):
         calls.append(log_name.name.rsplit('.', 1)[0])
+        _write_summary(log_name)
         os.kill(os.getpid(), signal.SIGINT)
         return 0
 
@@ -391,7 +410,7 @@ def test_sequential_turns_build_commit_chain_in_target_repository(tmp_path, monk
     _run_git(repo, 'commit', '-m', 'generic project')
     original = _run_git(repo, 'rev-parse', 'HEAD')
     codex = tmp_path / 'codex'
-    codex.write_text(
+    _write_codex(codex,
         '#!/bin/sh\n'
         'printf "change = True\\n" >> module.py\n'
         'git add module.py\n'
@@ -421,6 +440,7 @@ def test_sequential_stops_and_preserves_failed_turn(tmp_path, monkeypatch, failu
     def run_agent(_self, log_name, worktree, *_args):
         calls.append(int(log_name.name.rsplit('.', 1)[1]))
         (worktree / 'module.py').write_text('incomplete = True\n')
+        _write_summary(log_name)
         return 1 if failure == 'nonzero' else 0
 
     monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: 'codex')
@@ -440,8 +460,9 @@ def test_sequential_can_use_git(tmp_path, monkeypatch):
     _create_repository(repo)
     workspaces = []
 
-    def run_agent(_self, _log_name, workspace, *_args):
+    def run_agent(_self, log_name, workspace, *_args):
         workspaces.append(workspace)
+        _write_summary(log_name)
         return 0
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
@@ -456,8 +477,9 @@ def test_sequential_can_use_git(tmp_path, monkeypatch):
 def test_single_worker_without_git_works_outside_git(tmp_path, monkeypatch):
     workspaces = []
 
-    def run_agent(_self, _log_name, workspace, task):
+    def run_agent(_self, log_name, workspace, task):
         workspaces.append(workspace)
+        _write_summary(log_name)
         assert task.startswith('Do the task Do not commit changes')
         return 0
 
@@ -476,7 +498,7 @@ def test_worktree_context_cleanup_on_exception_preserves_branch_and_edits(tmp_pa
     _create_repository(repo)
     worktrees = worker_git.Git(repo, 'context-test')
     with pytest.raises(RuntimeError, match='turn failed'):
-        with worktrees.create_branch('agent-01', 1, tmp_path / 'summary.json') as branch_workspace:
+        with worktrees.create_workspace_branch('agent-01', 1) as branch_workspace:
             workspace = branch_workspace.work_dir
             branch = _run_git(workspace, 'branch', '--show-current')
             if dirty:
@@ -500,6 +522,7 @@ def test_runner_uses_configured_log_root(tmp_path, monkeypatch, relative):
 
     def run_agent(_self, log_name, _workspace, _task):
         captured.append(log_name)
+        _write_summary(log_name)
         return 0
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
@@ -519,7 +542,7 @@ def test_runner_commits_with_summary_only_when_worktrees_enabled(tmp_path, monke
     _create_repository(repo)
     base = _run_git(repo, 'rev-parse', 'HEAD')
     codex = tmp_path / 'codex'
-    codex.write_text(
+    _write_codex(codex,
         '#!/bin/sh\n'
         'previous=""\n'
         'for argument in "$@"; do\n'

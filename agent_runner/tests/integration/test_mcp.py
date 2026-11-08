@@ -9,7 +9,7 @@ from click.testing import CliRunner
 from fastmcp import Client
 
 import agent_runner.mcp as runner_mcp
-from agent_runner.mcp import _docker_test, create_server as create_runner_server
+from agent_runner.mcp import _docker, create_server as create_runner_server
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -61,7 +61,7 @@ def test_mcp_cli_rejects_dockerfile_outside_build_root(tmp_path):
     assert 'path must be inside workspace' in result.output
 
 
-def test_runner_mcp_exposes_only_docker_test():
+def test_runner_mcp_exposes_only_docker():
     import asyncio
 
     runner_tools = asyncio.run(
@@ -69,7 +69,7 @@ def test_runner_mcp_exposes_only_docker_test():
     )
 
     assert {tool.name for tool in runner_tools} == {
-        "docker_test",
+        "docker",
     }
 
 
@@ -84,7 +84,7 @@ def test_mcp_docker_tool_runs_through_fake_docker(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path))
     monkeypatch.chdir(tmp_path)
 
-    result = json.loads(_docker_test("task.py", tmp_path, tmp_path, dockerfile))
+    result = json.loads(_docker("task.py", tmp_path, tmp_path, dockerfile))
 
     assert result["returncode"] == 0
     assert result["output"] == "ok\n"
@@ -106,7 +106,7 @@ def test_mcp_docker_tool_builds_test_image_before_running(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
 
     json.loads(
-        _docker_test(
+        _docker(
             "task.py",
             tmp_path,
             tmp_path,
@@ -146,7 +146,7 @@ def test_mcp_docker_tool_uses_startup_build_config_outside_worktree(tmp_path, mo
 
     async def call_tool():
         async with Client(server) as client:
-            return await client.call_tool("docker_test", {"path": "task.py"})
+            return await client.call_tool("docker", {"path": "task.py"})
 
     response = asyncio.run(call_tool())
     result = json.loads(response.content[0].text)
@@ -172,7 +172,7 @@ def test_mcp_docker_tool_reports_daemon_failure(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     with pytest.raises(RuntimeError, match="Docker daemon is unavailable"):
-        _docker_test("task.py", tmp_path, tmp_path, tmp_path / "Dockerfile.test")
+        _docker("task.py", tmp_path, tmp_path, tmp_path / "Dockerfile.test")
 
 
 def test_mcp_docker_tool_requires_docker(tmp_path, monkeypatch):
@@ -183,7 +183,7 @@ def test_mcp_docker_tool_requires_docker(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     with pytest.raises(RuntimeError, match="Docker executable not found"):
-        _docker_test("task.py", tmp_path, tmp_path, tmp_path / "Dockerfile.test")
+        _docker("task.py", tmp_path, tmp_path, tmp_path / "Dockerfile.test")
 
 
 def test_mcp_docker_tool_reports_launch_error(tmp_path, monkeypatch):
@@ -196,7 +196,7 @@ def test_mcp_docker_tool_reports_launch_error(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     with pytest.raises(RuntimeError, match="Docker image build could not start"):
-        _docker_test("task.py", tmp_path, tmp_path, tmp_path / "Dockerfile.test")
+        _docker("task.py", tmp_path, tmp_path, tmp_path / "Dockerfile.test")
 
 
 def test_mcp_docker_tools_run_concurrently(tmp_path, monkeypatch):
@@ -223,8 +223,8 @@ def test_mcp_docker_tools_run_concurrently(tmp_path, monkeypatch):
             )
         ) as client:
             return await asyncio.gather(
-                client.call_tool("docker_test", {"path": "task.py"}),
-                client.call_tool("docker_test", {"path": "task.py"}),
+                client.call_tool("docker", {"path": "task.py"}),
+                client.call_tool("docker", {"path": "task.py"}),
             )
 
     results = [

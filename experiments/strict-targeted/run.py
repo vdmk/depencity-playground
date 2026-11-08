@@ -13,18 +13,20 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agent_runner.mcp import _docker_test
+from agent_runner.mcp import _docker
 from depencity.mcp import profile as mcp_profile
 
 
 MODEL = 'gpt-6-luna'
 DEFAULT_TURNS = 3
+METRIC = 'graph.paths.expressions.count'
+METRIC_KEY = f'profile.{METRIC}'
 PROMPT = (
     'Refactor the target Python script into readable, simple functions with minimal '
     'semantic complexity. Preserve behavior, edit the copied file in place, and run '
     'the provided tests. Optimize only graph.paths.expressions.count. Use the profile '
     'as evidence: inspect the module scope with all children so you can compare each '
-    'scope\'s direct and subgraph expression-path counts. Preserve behavior and '
+    'scope\'s own_profile and aggregate profile expression-path counts. Preserve behavior and '
     'dependency meaning; do not merely relocate complexity. Search within this '
     'invocation. You have a budget of exactly 10 candidate attempts inside this '
     'invocation. The objective is to minimize the whole-file expression-path count, '
@@ -264,8 +266,12 @@ def _run_turn(
     prefix = f'{variant}-step-{turn:02d}'
     log = root / f'{prefix}.jsonl'
     prompt = (
-        f'{PROMPT}\nRefactor only {target_name}; do not commit. Keep the change focused '
-        'on one cohesive area.'
+        f'{PROMPT}\nRefactor only {target_name}; do not commit or modify {test_name}. '
+        'Keep the change focused on one cohesive area. '
+        'The current profile API uses scope="__module__", include_children=true, '
+        'include_own_profile=true, and metrics=["graph.paths.expressions.count"]. '
+        'Module profile aggregates all descendants; '
+        'own_profile measures a scope alone. There is no detail argument.'
     )
     command = _command(repo, directory, variant == 'mcp', prompt)
     started = time.monotonic()
@@ -286,7 +292,7 @@ def _run_turn(
     profile_path = root / f'{prefix}-profile.txt'
     profile_path.write_text(profile)
     test_result = json.loads(
-        _docker_test(
+        _docker(
             str(directory),
             repo,
             repo,
@@ -344,24 +350,27 @@ def _previous_metrics(root: Path, variant: str, start: int) -> dict[str, object]
 
 
 def _strictly_improves(before: dict[str, object], after: dict[str, object]) -> bool:
-    return after.get('subgraph_profile.graph.paths.expressions.count', 0) < before.get(
-        'subgraph_profile.graph.paths.expressions.count', 0
-    )
+    return after[METRIC_KEY] < before[METRIC_KEY]
 
 
 def _profile(repo: Path, target: Path) -> tuple[str, dict[str, object]]:
     response = mcp_profile(
         path=str(target),
         workspace=str(repo),
-        detail='compact',
+        scope='__module__',
+        include_children=True,
+        include_own_profile=True,
+        metrics=[METRIC],
     )
     document = json.loads(response)
     profile = json.dumps(document, indent=2, sort_keys=True) + '\n'
-    return profile, _flatten_metrics(document)
+    return profile, _parse_profile(profile)
 
 
 def _parse_profile(profile: str) -> dict[str, object]:
-    return _flatten_metrics(json.loads(profile))
+    document = json.loads(profile)
+    module = next(scope for scope in document['scopes'] if scope['id'] == '__module__')
+    return _flatten_metrics(module)
 
 
 def _flatten_metrics(value: object, prefix: str = '') -> dict[str, object]:
@@ -403,7 +412,7 @@ def _mcp_options(repo: Path, directory: Path) -> list[str]:
         ]),
         '--config', f'mcp_servers.agent-runner.cwd={json.dumps(str(directory))}',
         '--config', 'mcp_servers.agent-runner.default_tools_approval_mode="approve"',
-        '--config', 'mcp_servers.agent-runner.enabled_tools=["docker_test"]',
+        '--config', 'mcp_servers.agent-runner.enabled_tools=["docker"]',
     ]
 
 
