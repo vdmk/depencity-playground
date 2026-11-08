@@ -47,7 +47,7 @@ def run(repo, count, task, model, iterations, use_git, log_root) -> None:
         codex = Codex(model, log_root)
         git = Git(repo, run_id) if use_git else NoGit(repo)
 
-        successful = Runner(codex, repo, count, task, iterations, git, run_id).run()
+        successful = Runner(codex, repo, count, task, iterations, git).run()
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         raise click.ClickException(str(error)) from error
     if not successful:
@@ -57,7 +57,7 @@ def run(repo, count, task, model, iterations, use_git, log_root) -> None:
 class Runner:
     """Schedule Codex turns with optional worktree isolation."""
 
-    def __init__(self, codex, repo, count, task, iterations, git, run_id):
+    def __init__(self, codex, repo, count, task, iterations, git):
         self.codex = codex
         self.repo = repo
         self.count = count

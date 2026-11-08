@@ -333,7 +333,7 @@ def test_runner_stops_relaunching_after_first_interrupt(tmp_path, monkeypatch):
     monkeypatch.setattr(agent_runner.Codex, 'run', interrupt_agent)
 
     assert agent_runner.Runner(
-        agent_runner.Codex('model', tmp_path), repo, 1, 'task', 1, worker_git.NoGit(repo), 'interrupt-test',
+        agent_runner.Codex('model', tmp_path), repo, 1, 'task', 1, worker_git.NoGit(repo),
     ).run()
     assert calls == ['agent-01']
 
