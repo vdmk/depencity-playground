@@ -1,7 +1,7 @@
 """Manage temporary worktrees while preserving their branches."""
 
 import subprocess
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Lock
 
@@ -9,16 +9,6 @@ import click
 
 
 BRANCH_PREFIX = 'codex-batch'
-
-
-class NoBranch:
-    """An existing working directory with no commit operation."""
-
-    def __init__(self, work_dir: Path) -> None:
-        self.work_dir = work_dir
-
-    def commit(self, message: str):
-        pass
 
 
 class Branch:
@@ -34,16 +24,6 @@ class Branch:
         message = f'auto-refactor: {message}'
         run_git(self.work_dir, 'commit', '-m', message)
         click.echo(f'Committed changes: {message}')
-
-class NoGit:
-    """Use the existing directory without Git operations or cleanup."""
-
-    def __init__(self, work_dir: Path) -> None:
-        self.work_dir = work_dir
-
-    def create_workspace_branch(self, name, iteration):
-        return nullcontext(NoBranch(self.work_dir))
-
 
 class Git:
     """Create temporary worktrees and preserve branches and uncommitted edits."""

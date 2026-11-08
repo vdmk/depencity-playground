@@ -89,7 +89,7 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
     result = _invoke_parallel([
         '--repo', str(repo),
         '--workers', '3',
-        '--turns', '2',
+        '--iterations', '2',
     ])
 
     assert result.exit_code == 1, result.output
@@ -138,10 +138,10 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
 @pytest.mark.parametrize('option, value', [
     ('--workers', '0'),
     ('--workers', '101'),
-    ('--turns', '0'),
-    ('--turns', '1001'),
+    ('--iterations', '0'),
+    ('--iterations', '1001'),
 ])
-def test_parallel_rejects_invalid_worker_and_turn_limits(option, value):
+def test_parallel_rejects_invalid_worker_and_iteration_limits(option, value):
     result = _invoke_parallel([option, value])
 
     assert result.exit_code == 2
@@ -225,7 +225,7 @@ def test_runner_uses_latest_starting_branch_tip_for_later_iterations(tmp_path, m
     result = _invoke_parallel([
         '--repo', str(repo),
         '--workers', '1',
-        '--turns', '2',
+        '--iterations', '2',
     ])
 
     assert result.exit_code == 1, result.output
@@ -257,7 +257,7 @@ def test_runner_retires_failed_agents_and_relaunches_remaining_agents(tmp_path, 
     result = _invoke_parallel([
         '--repo', str(repo),
         '--workers', '2',
-        '--turns', '2',
+        '--iterations', '2',
     ])
 
     assert result.exit_code == 1
@@ -309,7 +309,7 @@ def test_agents_relaunch_independently(tmp_path, monkeypatch):
     result = _invoke_parallel([
         '--repo', str(repo),
         '--workers', '2',
-        '--turns', '2',
+        '--iterations', '2',
     ])
 
     assert result.exit_code == 1, result.output
@@ -332,8 +332,8 @@ def test_runner_stops_relaunching_after_first_interrupt(tmp_path, monkeypatch):
 
     monkeypatch.setattr(agent_runner.Codex, 'run', interrupt_agent)
 
-    assert agent_runner.Runner(
-        agent_runner.Codex('model', tmp_path), repo, 1, 'task', 1, worker_git.NoGit(repo),
+    assert agent_runner.SequentialRunner(
+        agent_runner.Codex('model', tmp_path), repo, 'task', 1,
     ).run()
     assert calls == ['agent-01']
 
@@ -459,7 +459,7 @@ def test_parallel_single_worker_uses_independent_branches(tmp_path, monkeypatch)
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
     result = CliRunner().invoke(agent_runner.main, [
-        'run-in-parallel', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--workers', '1', '--turns', '2',
+        'run-in-parallel', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--workers', '1', '--iterations', '2',
     ])
     assert result.exit_code == 0, result.output
     assert len(set(workspaces)) == 2
@@ -551,7 +551,7 @@ def test_runner_commits_with_summary_only_when_worktrees_enabled(tmp_path, monke
     arguments = ['run-sequential', '--log-root', 'agent-runner-files/logs', '--repo', str(repo)]
     if use_git:
         arguments[0] = 'run-in-parallel'
-        arguments.extend(['--workers', '1', '--turns', '2'])
+        arguments.extend(['--workers', '1', '--iterations', '2'])
     result = CliRunner().invoke(agent_runner.main, arguments)
     assert result.exit_code == 0, result.output
     assert _run_git(repo, 'rev-parse', 'HEAD') == base
@@ -589,7 +589,7 @@ def test_runner_preserves_uncommitted_work_on_missing_summary_or_failure(tmp_pat
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
     result = CliRunner().invoke(agent_runner.main, [
-        'run-in-parallel', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--workers', '1', '--turns', '2',
+        'run-in-parallel', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--workers', '1', '--iterations', '2',
     ])
     assert result.exit_code == 1, result.output
     workspace, = (repo / '.worktrees').rglob('iteration-*')
@@ -620,3 +620,71 @@ def test_log_root_is_required(command, tmp_path):
     assert 'Missing option' in result.output
     assert '--log-root' in result.output
     assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('branch_mode', ['fresh', 'incremental'])
+def test_branch_modes_control_workspace_reuse_and_commit_ancestry(tmp_path, monkeypatch, branch_mode):
+    repo = tmp_path / 'repo'
+    _create_repository(repo)
+    base = _run_git(repo, 'rev-parse', 'HEAD')
+    workspaces = {}
+
+    def run_agent(_self, iteration_name, work_dir, _task):
+        name, iteration = iteration_name.rsplit('.', 1)
+        iteration = int(iteration)
+        workspaces[iteration_name] = work_dir
+        module = work_dir / 'module.py'
+        before = module.read_text()
+        expected_prior = iteration - 1 if branch_mode == 'incremental' else 0
+        assert before.count('candidate = True') == expected_prior
+        module.write_text(before + 'candidate = True\n')
+        return codex_execution.CodexResult(0, f'improve {name} iteration {iteration}')
+
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
+    result = _invoke_parallel([
+        '--repo', str(repo), '--workers', '2', '--iterations', '3', '--branch-mode', branch_mode,
+    ])
+    assert result.exit_code == 0, result.output
+    branches = _run_git(repo, 'for-each-ref', '--format=%(refname)', 'refs/heads/codex-batch').splitlines()
+    expected_branches, expected_commits = (6, 1) if branch_mode == 'fresh' else (2, 3)
+    assert len(branches) == expected_branches
+    assert len(set(workspaces.values())) == expected_branches
+    for branch in branches:
+        assert _run_git(repo, 'rev-list', '--count', f'{base}..{branch}') == str(expected_commits)
+        assert _run_git(repo, 'show', f'{branch}:module.py').count('candidate = True') == expected_commits
+    assert all(not path.exists() for path in workspaces.values())
+    assert _run_git(repo, 'rev-parse', 'HEAD') == base
+    assert not _run_git(repo, 'status', '--porcelain')
+
+
+@pytest.mark.parametrize('failure', ['nonzero', 'exception'])
+def test_incremental_failure_keeps_prior_commit_and_uncommitted_edits(tmp_path, monkeypatch, failure):
+    repo = tmp_path / 'repo'
+    _create_repository(repo)
+    base = _run_git(repo, 'rev-parse', 'HEAD')
+    calls = []
+
+    def run_agent(_self, iteration_name, work_dir, _task):
+        calls.append((iteration_name, work_dir))
+        module = work_dir / 'module.py'
+        if iteration_name.endswith('.1'):
+            module.write_text('accepted = True\n')
+            return codex_execution.CodexResult(0, 'simplify module initialization')
+        assert module.read_text() == 'accepted = True\n'
+        module.write_text('unfinished = True\n')
+        if failure == 'exception':
+            raise OSError('agent unavailable')
+        return codex_execution.CodexResult(1, '')
+
+    monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
+    result = _invoke_parallel([
+        '--repo', str(repo), '--workers', '1', '--iterations', '3', '--branch-mode', 'incremental',
+    ])
+    assert result.exit_code == 1, result.output
+    assert len(calls) == 2
+    workspace = calls[0][1]
+    assert calls[1][1] == workspace
+    assert (workspace / 'module.py').read_text() == 'unfinished = True\n'
+    assert _run_git(workspace, 'show', 'HEAD:module.py') == 'accepted = True'
+    assert _run_git(workspace, 'rev-list', '--count', f'{base}..HEAD') == '1'
+    assert _run_git(repo, 'rev-parse', 'HEAD') == base
