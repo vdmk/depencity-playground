@@ -63,6 +63,23 @@ def _create_repository(path):
     _run_git(path, 'commit', '-m', 'initial')
 
 
+def test_plain_worker_uses_docker_without_profiler(tmp_path, monkeypatch):
+    capture = tmp_path / 'arguments'
+    monkeypatch.setenv('CODEX_ARGUMENTS', str(capture))
+    codex = tmp_path / 'codex'
+    _write_codex(codex, '#!/bin/sh\nprintf "%s\\n" "$@" > "$CODEX_ARGUMENTS"\n')
+    codex.chmod(0o755)
+    monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
+    result = codex_execution.Codex('model', tmp_path, with_depencity=False).run(
+        'plain.1', tmp_path, 'simplify',
+    )
+    assert result.return_code == 0
+    settings = dict(value.split('=', 1) for value in capture.read_text().splitlines()
+                    if value.startswith('mcp_servers.'))
+    assert {key.split('.')[1] for key in settings} == {'agent-runner'}
+    assert json.loads(settings['mcp_servers.agent-runner.enabled_tools']) == ['docker']
+
+
 def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
     repo = tmp_path / 'repo'
     _create_repository(repo)

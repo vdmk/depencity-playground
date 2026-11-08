@@ -25,6 +25,7 @@ class Evaluator:
         self.target = (repo / target).resolve()
         self.metrics = metrics
         self.test_script = test_script
+        self.test_source = (repo / test_script).read_bytes()
 
     def measure(self):
         executable = shutil.which('depencity')
@@ -46,6 +47,9 @@ class Evaluator:
     def evaluate(self, before, log_path, agent_return_code):
         accepted = False
         try:
+            test_path = self.repo / self.test_script
+            test_path.parent.mkdir(parents=True, exist_ok=True)
+            test_path.write_bytes(self.test_source)
             candidate = self.target.read_bytes() if self.target.exists() else b''
             Path(f'{log_path}.before.py').write_bytes(before.source)
             Path(f'{log_path}.candidate.py').write_bytes(candidate)

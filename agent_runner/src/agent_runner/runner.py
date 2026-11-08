@@ -1,4 +1,5 @@
 """Run Codex iterations, optionally in isolated Git worktrees."""
+import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,6 +9,7 @@ import click
 from agent_runner.cli_utils import cli_errors
 from agent_runner.codex import Codex
 from agent_runner.runners.evaluated import EvaluatedRunner
+from agent_runner.runners.comparison import ComparisonRunner
 from agent_runner.runners.fresh import FreshRunner
 from agent_runner.runners.incremental import IncrementalRunner
 from agent_runner.runners.in_place import InPlaceRunner
@@ -57,6 +59,53 @@ def run(repo, task, model, iterations, log_root, depencity_eval, target, metrics
         runner = InPlaceRunner(codex, repo, task, iterations)
     successful = runner.run()
     if not successful:
+        raise click.exceptions.Exit(1)
+
+
+@main.command()
+@click.option('--iterations', type=click.IntRange(1, 1000), default=1, show_default=True,
+              help='Total iterations per variant, including completed iterations when continuing.')
+@click.option('--continue', 'resume', is_flag=True, help='Continue the latest comparison in --log-root.')
+@click.option('--target', type=click.Path(path_type=Path))
+@click.option('--test-script', type=click.Path(path_type=Path))
+@click.option('--metric', 'metrics', multiple=True, default=('graph.paths.expressions.count',))
+@_common_options
+@cli_errors
+def run_experiment(repo, log_root, resume, **settings):
+    """Compare plain and Depencity workers in parallel, keeping tested improvements."""
+    repo = repo.resolve()
+    settings['repo'] = str(repo)
+    settings['metrics'] = list(settings['metrics'])
+    for key in ('target', 'test_script'):
+        if settings[key] is not None:
+            settings[key] = str((repo / settings[key]).resolve().relative_to(repo))
+    if resume:
+        base = (repo / log_root).resolve()
+        manifests = sorted(base.glob('*/run.json'))
+        if not manifests:
+            raise click.ClickException(f'no comparison to continue under {base}')
+        log_root = manifests[-1].parent
+        saved = json.loads(manifests[-1].read_text())
+        context = click.get_current_context()
+        for key, value in settings.items():
+            if context.get_parameter_source(key) != click.core.ParameterSource.COMMANDLINE:
+                continue
+            if key == 'iterations':
+                if value < saved[key]:
+                    raise click.UsageError('--iterations cannot be less than the saved total')
+            elif value != saved[key]:
+                raise click.ClickException('comparison settings differ from the saved run')
+            saved[key] = value
+        settings = saved
+    else:
+        if settings['target'] is None or settings['test_script'] is None:
+            raise click.UsageError('run-experiment requires --target and --test-script')
+        repo, log_root, _ = _build_context(repo, log_root)
+    (log_root / 'run.json').write_text(json.dumps(settings, indent=2) + '\n')
+    click.echo(f'Comparison: {log_root}')
+    for key in ('repo', 'target', 'test_script'):
+        settings[key] = Path(settings[key])
+    if not ComparisonRunner(log_root=log_root, resume=resume, **settings).run():
         raise click.exceptions.Exit(1)
 
 

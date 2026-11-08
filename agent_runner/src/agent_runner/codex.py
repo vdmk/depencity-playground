@@ -16,10 +16,11 @@ class CodexResult:
 class Codex:
     """Run fresh agent sessions using the configured model."""
 
-    def __init__(self, model: str, log_dir: Path) -> None:
+    def __init__(self, model: str, log_dir: Path, with_depencity: bool = True) -> None:
         self.model = model
         self.codex = shutil.which('codex')
         self.log_dir = log_dir
+        self.with_depencity = with_depencity
 
     def run(
         self,
@@ -43,12 +44,13 @@ class Codex:
             '--ignore-user-config',
         ]
         project = Path(__file__).resolve().parents[3]
-        command.extend(_create_mcp_server_options(
-            'depencity', [
-                'run', '--project', str(project), 'depencity-mcp',
-                '--workspace', str(work_dir),
-            ], work_dir, ['profile'],
-        ))
+        if self.with_depencity:
+            command.extend(_create_mcp_server_options(
+                'depencity', [
+                    'run', '--project', str(project), 'depencity-mcp',
+                    '--workspace', str(work_dir),
+                ], work_dir, ['profile'],
+            ))
         command.extend(_create_mcp_server_options(
             'agent-runner', [
                 'run', '--project', str(project), 'agent-runner-mcp',

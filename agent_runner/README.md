@@ -41,6 +41,17 @@ agent-runner run --depencity-eval --target calculator.py --iterations 3 \
   --test-script test_calculator.py --log-root /tmp/agent-runs
 ```
 
+`run-experiment` runs the same prompt in parallel under `plain/` and `depencity/`;
+only Depencity gets profiling tools. Both keep improvements verified with original tests in Docker.
+
+```sh
+agent-runner run-experiment --repo experiments/fixtures --target calculator.py \
+  --test-script test_calculator.py --iterations 3 --log-root /tmp/comparisons
+agent-runner run-experiment --iterations 6 --log-root /tmp/comparisons --continue
+```
+
+`--continue` reuses saved settings and progress. `--iterations` is the total per variant.
+
 The runner asks each worker to leave changes uncommitted and finish with a short
 change summary in a structured `short_summary` field. Codex saves that reply to
 a `.summary.json` file next to the logs. The runner supplies the `auto-refactor:`

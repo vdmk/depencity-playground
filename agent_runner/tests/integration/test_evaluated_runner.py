@@ -3,6 +3,7 @@
 import json
 import shlex
 import subprocess
+from threading import Barrier
 from pathlib import Path
 
 import pytest
@@ -57,8 +58,7 @@ def test_evaluated_iterations_keep_only_passing_metric_improvements(tmp_path, mo
 
     def run_agent(_self, _name, work_dir, task):
         assert work_dir != repo
-        assert 'Refactor only target.py' in task
-        assert 'graph.paths.expressions.count' in task
+        assert 'Target: target.py. Tests: test_target.py.' in task
         starts.append((work_dir / 'target.py').read_text())
         (work_dir / 'target.py').write_text(next(candidates))
         return CodexResult(0, 'simplify the calculation')
@@ -166,7 +166,6 @@ def test_repeatable_metrics_require_improvement_without_regression(tmp_path, mon
         return next(measurements)
 
     def run_agent(_self, _name, work_dir, task):
-        assert all(metric in task for metric in metrics)
         (work_dir / 'target.py').write_text(IMPROVED)
         return CodexResult(0, 'simplify calculation')
 
@@ -210,3 +209,146 @@ def test_evaluated_runner_copies_only_target_and_test_script(tmp_path, monkeypat
     assert len(seen) == 1
     assert (repo / 'src/target.py').read_text() == ORIGINAL
     assert (repo / 'unrelated.py').read_text() == 'do_not_copy = True\n'
+
+
+def test_comparison_runs_variants_in_parallel_and_continues(tmp_path, monkeypatch):
+    repo, logs, arguments = prepare(tmp_path)
+    arguments[:2] = ['run-experiment']
+    arguments.extend(['--iterations', '1'])
+    barrier = Barrier(2)
+    calls = []
+    prompts = {}
+
+    def run_agent(self, name, work_dir, task):
+        variant = work_dir.name
+        assert self.with_depencity == (variant == 'depencity')
+        prompts[variant] = task
+        calls.append((variant, name, (work_dir / 'target.py').read_text()))
+        barrier.wait(timeout=15)
+        (work_dir / 'target.py').write_text(IMPROVED)
+        return CodexResult(0, 'simplify')
+
+    monkeypatch.setattr(Codex, 'run', run_agent)
+    result = CliRunner().invoke(main, arguments)
+    assert result.exit_code == 0, result.output
+    assert prompts['plain'] == prompts['depencity']
+    root, = logs.iterdir()
+    saved = {path: path.read_bytes() for path in root.glob('*/*.evaluation.json')}
+    assert sorted(calls) == [('depencity', 'depencity.1', ORIGINAL), ('plain', 'plain.1', ORIGINAL)]
+    calls.clear()
+    result = CliRunner().invoke(main, [
+        'run-experiment', '--log-root', str(logs), '--iterations', '2', '--continue',
+    ])
+    assert result.exit_code == 0, result.output
+    assert sorted(calls) == [('depencity', 'depencity.2', IMPROVED), ('plain', 'plain.2', IMPROVED)]
+    assert all(path.read_bytes() == data for path, data in saved.items())
+    assert (repo / 'target.py').read_text() == ORIGINAL
+    for variant in ('plain', 'depencity'):
+        assert (root / variant / 'target.py').read_text() == IMPROVED
+        report = json.loads((root / variant / f'{variant}.2.evaluation.json').read_text())
+        assert report['status'] == 'rejected'
+
+
+def test_comparison_continue_restores_interrupted_candidate(tmp_path, monkeypatch):
+    repo, logs, arguments = prepare(tmp_path)
+    arguments[:2] = ['run-experiment']
+    arguments.extend(['--iterations', '1'])
+    calls = []
+
+    def interrupted(self, name, work_dir, task):
+        calls.append(work_dir.name)
+        (work_dir / 'target.py').write_text(IMPROVED)
+        return CodexResult(0, 'simplify')
+
+    monkeypatch.setattr(Codex, 'run', interrupted)
+    result = CliRunner().invoke(main, arguments)
+    assert result.exit_code == 0, result.output
+    root, = logs.iterdir()
+    # Simulate interruption after the next agent edited the file but before evaluation.
+    (root / 'plain/plain.2.before.py').write_text(IMPROVED)
+    (root / 'plain/target.py').write_text('broken candidate!\n')
+
+    def resumed(self, name, work_dir, task):
+        assert (work_dir / 'target.py').read_text() == IMPROVED
+        calls.append(name)
+        return CodexResult(0, 'no change')
+
+    monkeypatch.setattr(Codex, 'run', resumed)
+    calls.clear()
+    result = CliRunner().invoke(main, [*arguments, '--iterations', '2', '--continue'])
+    assert result.exit_code == 0, result.output
+    assert sorted(calls) == ['depencity.2', 'plain.2']
+    assert (root / 'plain/target.py').read_text() == IMPROVED
+
+
+def test_comparison_continue_requires_matching_run(tmp_path, monkeypatch):
+    repo, logs, arguments = prepare(tmp_path)
+    arguments[:2] = ['run-experiment']
+    result = CliRunner().invoke(main, [*arguments, '--continue'])
+    assert result.exit_code == 1
+    assert 'no comparison to continue' in result.output
+    monkeypatch.setattr(Codex, 'run', lambda *args: CodexResult(1, 'failed'))
+    result = CliRunner().invoke(main, arguments)
+    assert result.exit_code == 1
+    result = CliRunner().invoke(main, [*arguments, '--continue', '--model', 'different'])
+    assert result.exit_code == 1
+    assert 'settings differ' in result.output
+
+
+def test_comparison_continue_retries_only_failed_variant(tmp_path, monkeypatch):
+    repo, logs, arguments = prepare(tmp_path)
+    arguments[:2] = ['run-experiment']
+    arguments.extend(['--iterations', '1'])
+
+    def initial(self, name, work_dir, task):
+        (work_dir / 'target.py').write_text(IMPROVED)
+        return CodexResult(1 if work_dir.name == 'plain' else 0, 'candidate')
+
+    monkeypatch.setattr(Codex, 'run', initial)
+    result = CliRunner().invoke(main, arguments)
+    assert result.exit_code == 1, result.output
+    root, = logs.iterdir()
+    depencity_report = root / 'depencity/depencity.1.evaluation.json'
+    saved_report = depencity_report.read_bytes()
+    calls = []
+
+    def retry(self, name, work_dir, task):
+        calls.append(name)
+        assert (work_dir / 'target.py').read_text() == ORIGINAL
+        (work_dir / 'target.py').write_text(IMPROVED)
+        return CodexResult(0, 'simplify')
+
+    monkeypatch.setattr(Codex, 'run', retry)
+    result = CliRunner().invoke(main, ['run-experiment', '--log-root', str(logs), '--continue'])
+    assert result.exit_code == 0, result.output
+    assert calls == ['plain.1']
+    assert depencity_report.read_bytes() == saved_report
+
+
+@pytest.mark.parametrize('candidate, tamper, accepted', [
+    ('value = 4\n', 'replace', False),
+    (IMPROVED, 'delete', True),
+])
+def test_evaluator_uses_original_tests(tmp_path, monkeypatch, candidate, tamper, accepted):
+    repo, logs, arguments = prepare(tmp_path)
+    arguments.extend(['--iterations', '1'])
+    original_tests = (repo / 'test_target.py').read_bytes()
+
+    def run_agent(self, name, work_dir, task):
+        (work_dir / 'target.py').write_text(candidate)
+        tests = work_dir / 'test_target.py'
+        if tamper == 'delete':
+            tests.unlink()
+        else:
+            tests.write_text('def test_always_passes():\n    assert True\n')
+        return CodexResult(0, 'candidate')
+
+    monkeypatch.setattr(Codex, 'run', run_agent)
+    result = CliRunner().invoke(main, arguments)
+    assert result.exit_code == (0 if accepted else 1), result.output
+    workspace, = logs.glob('*/workspace')
+    assert (workspace / 'test_target.py').read_bytes() == original_tests
+    report_path, = logs.rglob('*.evaluation.json')
+    report = json.loads(report_path.read_text())
+    assert report['accepted'] == accepted
+    assert report['test_return_code'] == (0 if accepted else 1)
