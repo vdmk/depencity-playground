@@ -8,14 +8,30 @@ The ignored output directory preserves every turn's JSONL log, response, profile
 test result, and diff. Step 1 compares the original file with the first edit;
 each later step compares the previous step with the current step.
 
-Run it from the repository root:
+The shared runner can execute this workflow directly, without importing the
+experiment script. Prepare a copy of the fixture, then run it from the repository
+root:
 
-```bash
-uv run python experiments/strict-targeted/run.py
+```sh
+mkdir -p out/experiments/calculator
+cp experiments/fixtures/calculator.py experiments/fixtures/test_calculator.py out/experiments/calculator/
+uv run agent-runner run --depencity-eval \
+  --repo out/experiments/calculator --target calculator.py --iterations 3 \
+  --metric graph.paths.expressions.count \
+  --test-command 'python -m pytest -q test_calculator.py -p no:cacheprovider' \
+  --log-root /tmp/calculator-evaluations
 ```
 
-The default is three turns. Pass `--turns N` to run a different number.
+The new command uses the normal Codex configuration and runs tests with the
+supplied command. Configure Depencity MCP there if the agent should use it during
+its search. The evaluator uses the local Depencity CLI independently.
 
+The original script remains available for its ten-attempt prompt, Docker test
+setup, and resume behavior:
+
+```sh
+uv run python experiments/strict-targeted/run.py --turns 3
+```
 
 The environment uses the editable `../depencity` package configured in the root
 `pyproject.toml`. Run `uv sync` after updating that checkout.

@@ -31,6 +31,14 @@ ends (after each fresh iteration or after the whole incremental worker);
 branches and commits remain available for review. Uncommitted changes preserve
 the worktree. Nothing merges automatically.
 
+Use `--depencity-eval` to keep tested metric improvements. Repeat `--metric` to
+select several: none may increase, and at least one must decrease.
+
+```sh
+agent-runner run --depencity-eval --target calculator.py --iterations 3 \
+  --test-command 'python -m pytest -q test_calculator.py' --log-root /tmp/agent-runs
+```
+
 The runner asks each worker to leave changes uncommitted and finish with a short
 change summary in a structured `short_summary` field. Codex saves that reply to
 a `.summary.json` file next to the logs. The runner supplies the `auto-refactor:`
@@ -51,6 +59,7 @@ Optional worktrees go under
 lifetimes. `InPlaceRunner` runs directly in the supplied directory without
 Git. The base runner knows nothing about branches or commits. `git.py` handles
 Git operations.
-The runner does not call an evaluator or measure refactoring quality.
+Ordinary runners do not evaluate refactoring quality; `run --depencity-eval` opts into
+the separate evaluator.
 
 The package also provides `agent-runner-mcp` for Docker testing. See the [project README](../README.md) for its test setup.
