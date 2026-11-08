@@ -1,9 +1,9 @@
 """Cumulative iterations directly in the supplied directory."""
 
-from .base import Runner
+from agent_runner.runners.base import Runner
 
 
-class SequentialRunner(Runner):
+class InPlaceRunner(Runner):
     """Run iterations in place without creating branches or commits."""
 
     def __init__(self, codex, repo, task, iterations):

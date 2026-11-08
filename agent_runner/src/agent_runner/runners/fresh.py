@@ -1,7 +1,7 @@
 """Independent branches for each worker iteration."""
 
-from ..git import Git
-from .base import Runner
+from agent_runner.git import Git
+from agent_runner.runners.base import Runner
 
 
 class FreshRunner(Runner):

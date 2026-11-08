@@ -4,17 +4,17 @@ Run Codex iterations in any directory. Supply the task and use the project's nor
 Codex configuration. The runner records output; evaluation is separate.
 
 ```sh
-agent-runner run-sequential --iterations 20 --log-root /tmp/agent-runs
-agent-runner run-in-parallel --workers 50 --iterations 30 --log-root /tmp/agent-runs
+agent-runner run --iterations 20 --log-root /tmp/agent-runs
+agent-runner run-workspaces --workers 50 --iterations 30 --log-root /tmp/agent-runs
 ```
 
 Both commands require `--log-root` and accept `--repo`, `--task`, and `--model`.
 
-`run-sequential` runs one worker in the supplied directory. Each iteration starts
+`run` runs one worker in the supplied directory. Each iteration starts
 from the previous iteration's edits. Git and commits are optional; the runner
 leaves changes uncommitted. The default is one iteration.
 
-`run-in-parallel` runs independent candidates using Git worktrees. `--workers`
+`run-workspaces` runs independent candidates using Git worktrees. `--workers`
 sets concurrency (default 5); `--iterations` sets iterations per worker (default 1).
 For example, 50 workers with 30 iterations schedules up to 1,500 candidates.
 `--branch-mode` selects the branch lifetime:
@@ -48,7 +48,7 @@ Optional worktrees go under
 `Codex` in `codex.py` executes an iteration. The `runners/` subpackage contains
 `Runner` for scheduling, interruption, and shared Codex execution.
 `FreshRunner` and `IncrementalRunner` own their `Git` instances and branch
-lifetimes. `SequentialRunner` runs directly in the supplied directory without
+lifetimes. `InPlaceRunner` runs directly in the supplied directory without
 Git. The base runner knows nothing about branches or commits. `git.py` handles
 Git operations.
 The runner does not call an evaluator or measure refactoring quality.

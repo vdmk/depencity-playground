@@ -12,7 +12,7 @@ import click
 from fastmcp import Context, FastMCP
 from fastmcp.server.lifespan import lifespan
 
-from .docker import (
+from agent_runner.docker import (
     DEFAULT_BUILD_IMAGE,
     docker_build_command,
     docker_command,

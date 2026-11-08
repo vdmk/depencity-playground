@@ -5,9 +5,11 @@ from pathlib import Path
 
 import click
 
-from .cli_utils import cli_errors
-from .codex import Codex
-from .runners import FreshRunner, IncrementalRunner, SequentialRunner
+from agent_runner.cli_utils import cli_errors
+from agent_runner.codex import Codex
+from agent_runner.runners.fresh import FreshRunner
+from agent_runner.runners.incremental import IncrementalRunner
+from agent_runner.runners.in_place import InPlaceRunner
 
 
 DEFAULT_TASK = (
@@ -36,10 +38,11 @@ def _common_options(command):
 @click.option('--iterations', type=click.IntRange(1, 1000), default=1, show_default=True)
 @_common_options
 @cli_errors
-def run_sequential(repo, task, model, iterations, log_root) -> None:
+def run(repo, task, model, iterations, log_root) -> None:
     """Run cumulative iterations in the supplied directory without Git commits."""
-    repo, log_root, _ = build_context(repo, log_root)
-    successful = SequentialRunner(Codex(model, log_root), repo, task, iterations).run()
+    repo, log_root, _ = _build_context(repo, log_root)
+
+    successful = InPlaceRunner(Codex(model, log_root), repo, task, iterations).run()
     if not successful:
         raise click.exceptions.Exit(1)
 
@@ -52,18 +55,17 @@ def run_sequential(repo, task, model, iterations, log_root) -> None:
               help='Number of iterations per worker.')
 @_common_options
 @cli_errors
-def run_in_parallel(repo, workers, task, model, iterations, log_root, branch_mode) -> None:
+def run_workspaces(repo, workers, task, model, iterations, log_root, branch_mode) -> None:
     """Run workers concurrently using the selected branch strategy."""
-    repo, log_root, run_id = build_context(repo, log_root)
-    codex = Codex(model, log_root)
-
+    repo, log_root, run_id = _build_context(repo, log_root)
     runner_class = FreshRunner if branch_mode == 'fresh' else IncrementalRunner
-    successful = runner_class(codex, repo, workers, task, iterations, run_id).run()
+
+    successful = runner_class(Codex(model, log_root), repo, workers, task, iterations, run_id).run()
     if not successful:
         raise click.exceptions.Exit(1)
 
 
-def build_context(repo: Path, log_root: Path) -> tuple[Path, Path, str]:
+def _build_context(repo: Path, log_root: Path) -> tuple[Path, Path, str]:
     run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
 
     repo = repo.resolve()

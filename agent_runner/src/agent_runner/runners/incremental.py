@@ -1,7 +1,7 @@
 """Cumulative iterations in one workspace per worker."""
 
-from ..git import Git
-from .base import Runner
+from agent_runner.git import Git
+from agent_runner.runners.base import Runner
 
 
 class IncrementalRunner(Runner):

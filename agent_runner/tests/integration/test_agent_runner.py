@@ -27,7 +27,7 @@ def _write_codex(path, script):
 
 def _invoke_parallel(arguments):
     return CliRunner().invoke(agent_runner.main, [
-        'run-in-parallel', '--log-root', 'agent-runner-files/logs',
+        'run-workspaces', '--log-root', 'agent-runner-files/logs',
         *arguments,
     ])
 
@@ -332,7 +332,7 @@ def test_runner_stops_relaunching_after_first_interrupt(tmp_path, monkeypatch):
 
     monkeypatch.setattr(agent_runner.Codex, 'run', interrupt_agent)
 
-    assert agent_runner.SequentialRunner(
+    assert agent_runner.InPlaceRunner(
         agent_runner.Codex('model', tmp_path), repo, 'task', 1,
     ).run()
     assert calls == ['agent-01']
@@ -414,7 +414,7 @@ def test_sequential_turns_build_commit_chain_in_target_repository(tmp_path, monk
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
     result = CliRunner().invoke(agent_runner.main, [
-        'run-sequential', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--iterations', '3', '--task', 'Refactor module.py.',
+        'run', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--iterations', '3', '--task', 'Refactor module.py.',
     ])
 
     assert result.exit_code == 0, result.output
@@ -439,7 +439,7 @@ def test_sequential_stops_and_preserves_failed_turn(tmp_path, monkeypatch, failu
     monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: 'codex')
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
     result = CliRunner().invoke(agent_runner.main, [
-        'run-sequential', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--iterations', '3',
+        'run', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--iterations', '3',
     ])
 
     assert result.exit_code == (1 if failure == 'nonzero' else 0), result.output
@@ -459,7 +459,7 @@ def test_parallel_single_worker_uses_independent_branches(tmp_path, monkeypatch)
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
     result = CliRunner().invoke(agent_runner.main, [
-        'run-in-parallel', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--workers', '1', '--iterations', '2',
+        'run-workspaces', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--workers', '1', '--iterations', '2',
     ])
     assert result.exit_code == 0, result.output
     assert len(set(workspaces)) == 2
@@ -476,7 +476,7 @@ def test_single_worker_without_git_works_outside_git(tmp_path, monkeypatch):
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
     result = CliRunner().invoke(agent_runner.main, [
-        'run-sequential', '--log-root', 'agent-runner-files/logs', '--repo', str(tmp_path), '--task', 'Do the task',
+        'run', '--log-root', 'agent-runner-files/logs', '--repo', str(tmp_path), '--task', 'Do the task',
     ])
     assert result.exit_code == 0, result.output
     assert workspaces == [tmp_path]
@@ -517,7 +517,7 @@ def test_runner_uses_configured_log_root(tmp_path, monkeypatch, relative):
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
     result = CliRunner().invoke(agent_runner.main, [
-        'run-sequential', '--log-root', 'agent-runner-files/logs', '--repo', str(repo),
+        'run', '--log-root', 'agent-runner-files/logs', '--repo', str(repo),
         '--log-root', 'custom-logs' if relative else str(log_root),
     ])
     assert result.exit_code == 0, result.output
@@ -548,9 +548,9 @@ def test_runner_commits_with_summary_only_when_worktrees_enabled(tmp_path, monke
     )
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
-    arguments = ['run-sequential', '--log-root', 'agent-runner-files/logs', '--repo', str(repo)]
+    arguments = ['run', '--log-root', 'agent-runner-files/logs', '--repo', str(repo)]
     if use_git:
-        arguments[0] = 'run-in-parallel'
+        arguments[0] = 'run-workspaces'
         arguments.extend(['--workers', '1', '--iterations', '2'])
     result = CliRunner().invoke(agent_runner.main, arguments)
     assert result.exit_code == 0, result.output
@@ -589,7 +589,7 @@ def test_runner_preserves_uncommitted_work_on_missing_summary_or_failure(tmp_pat
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
     result = CliRunner().invoke(agent_runner.main, [
-        'run-in-parallel', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--workers', '1', '--iterations', '2',
+        'run-workspaces', '--log-root', 'agent-runner-files/logs', '--repo', str(repo), '--workers', '1', '--iterations', '2',
     ])
     assert result.exit_code == 1, result.output
     workspace, = (repo / '.worktrees').rglob('iteration-*')
@@ -605,7 +605,7 @@ def test_sequential_rejects_concurrent_workers(tmp_path, monkeypatch):
 
     monkeypatch.setattr(agent_runner.Codex, 'run', unexpected_run)
     result = CliRunner().invoke(agent_runner.main, [
-        'run-sequential', '--log-root', 'agent-runner-files/logs', '--repo', str(tmp_path), '--workers', '2',
+        'run', '--log-root', 'agent-runner-files/logs', '--repo', str(tmp_path), '--workers', '2',
     ])
     assert result.exit_code == 2
     assert 'No such option' in result.output
@@ -613,7 +613,7 @@ def test_sequential_rejects_concurrent_workers(tmp_path, monkeypatch):
     assert not (tmp_path / 'agent-runner-files').exists()
 
 
-@pytest.mark.parametrize('command', ['run-sequential', 'run-in-parallel'])
+@pytest.mark.parametrize('command', ['run', 'run-workspaces'])
 def test_log_root_is_required(command, tmp_path):
     result = CliRunner().invoke(agent_runner.main, [command, '--repo', str(tmp_path)])
     assert result.exit_code == 2
