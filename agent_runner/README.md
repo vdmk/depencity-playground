@@ -55,6 +55,8 @@ agent-runner run-experiment --iterations 6 --log-root /tmp/comparisons --continu
 `--depencity-accept all|depencity` defaults to `all` (accept passing tests).
 `depencity` also requires no selected metric increases and at least one decrease;
 rejected candidates are logged and rolled back. Plain always accepts passing tests.
+Test failures also roll back the candidate and continue to the next iteration;
+agent failures and infrastructure errors stop the affected worker.
 Also available for `run --depencity-eval`; saved across `--continue`.
 
 The runner asks each worker to leave changes uncommitted and finish with a short

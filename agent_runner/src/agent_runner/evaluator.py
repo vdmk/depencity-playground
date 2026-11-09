@@ -96,7 +96,7 @@ class Evaluator:
                 ))
                 Path(f'{log_path}.tests.txt').write_text(tests['output'])
                 test_return_code = tests['returncode']
-                status = 'tests_failed'
+                status = 'rejected'
                 if test_return_code == 0:
                     after_values = self.measure()
                     accepted = self.depencity_accept == 'all' or (

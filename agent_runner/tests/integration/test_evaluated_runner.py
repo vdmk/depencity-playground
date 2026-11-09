@@ -186,7 +186,7 @@ def test_improvement_filter_requires_evaluation(tmp_path):
     assert '--depencity-accept requires --depencity-eval' in result.output
 
 
-@pytest.mark.parametrize('failure', ['tests', 'syntax', 'agent', 'exception', 'docker'])
+@pytest.mark.parametrize('failure', ['agent', 'exception', 'docker'])
 def test_evaluated_failures_restore_target_and_stop(tmp_path, monkeypatch, failure):
     repo, logs, arguments = prepare(tmp_path)
     calls = []
@@ -215,8 +215,41 @@ def test_evaluated_failures_restore_target_and_stop(tmp_path, monkeypatch, failu
         report, = logs.rglob('*.evaluation.json')
         report = json.loads(report.read_text())
         assert report['accepted'] is False
-        assert report['status'] == ('agent_failed' if failure == 'agent' else 'tests_failed')
+        assert report['status'] == 'agent_failed'
         assert report['after'] is None
+
+
+@pytest.mark.parametrize('paired', [False, True])
+@pytest.mark.parametrize('bad_source', ['value = 4\n', 'invalid Python!\n'])
+def test_failed_tests_roll_back_and_continue(tmp_path, monkeypatch, paired, bad_source):
+    repo, logs, arguments = prepare(tmp_path)
+    if paired:
+        arguments[:2] = ['run-experiment']
+    starts = []
+
+    def run_agent(self, name, work_dir, task):
+        iteration = int(name.rsplit('.', 1)[1])
+        starts.append((name, (work_dir / 'target.py').read_text()))
+        (work_dir / 'target.py').write_text(bad_source if iteration == 1 else IMPROVED)
+        return CodexResult(0, 'candidate')
+
+    monkeypatch.setattr(Codex, 'run', run_agent)
+    result = CliRunner().invoke(main, [*arguments, '--iterations', '2'])
+    assert result.exit_code == 0, result.output
+    assert len(starts) == (4 if paired else 2)
+    assert all(source == ORIGINAL for _, source in starts)
+    reports = [json.loads(p.read_text()) for p in logs.rglob('*.evaluation.json')]
+    rejected = [r for r in reports if r['status'] == 'rejected']
+    assert len(rejected) == (2 if paired else 1)
+    assert all(r['test_return_code'] != 0 and not r['accepted'] for r in rejected)
+    assert sum(r['status'] == 'accepted' for r in reports) == (2 if paired else 1)
+    if paired:
+        starts.clear()
+        result = CliRunner().invoke(main, [
+            'run-experiment', '--log-root', str(logs), '--continue', '--iterations', '2',
+        ])
+        assert result.exit_code == 0, result.output
+        assert starts == []
 
 
 def test_evaluation_error_restores_candidate(tmp_path, monkeypatch):
@@ -447,7 +480,7 @@ def test_evaluator_uses_original_tests(tmp_path, monkeypatch, candidate, tamper,
 
     monkeypatch.setattr(Codex, 'run', run_agent)
     result = CliRunner().invoke(main, arguments)
-    assert result.exit_code == (0 if accepted else 1), result.output
+    assert result.exit_code == 0, result.output
     workspace, = logs.glob('*/workspace')
     assert (workspace / 'test_target.py').read_bytes() == original_tests
     report_path, = logs.rglob('*.evaluation.json')

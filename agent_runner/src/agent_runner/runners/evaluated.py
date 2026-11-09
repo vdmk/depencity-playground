@@ -4,7 +4,6 @@ import shutil
 
 import click
 
-from agent_runner.codex import CodexResult
 from agent_runner.evaluator import Evaluator, checked_workspace_path
 from agent_runner.runners.in_place import InPlaceRunner
 
@@ -43,5 +42,4 @@ class EvaluatedRunner(InPlaceRunner):
             f'{name}.{iteration}: {report["status"]}; '
             f'{report["metrics"]}: {report["before"]} -> {report["after"]}'
         )
-        return_code = result.return_code or report['test_return_code'] or 0
-        return CodexResult(return_code, result.short_summary)
+        return result
