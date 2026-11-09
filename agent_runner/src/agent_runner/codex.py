@@ -68,9 +68,9 @@ class Codex:
             str(self.log_dir.resolve()): 'deny',
         }
         command.extend(['--config', 'default_permissions="project"'])
-        for path, access in filesystem.items():
-            command.extend(['--config',
-                            f'permissions.project.filesystem.{json.dumps(path)}={json.dumps(access)}'])
+        rules = ', '.join(f'{json.dumps(path)} = {json.dumps(access)}'
+                          for path, access in filesystem.items())
+        command.extend(['--config', f'permissions.project.filesystem={{ {rules} }}'])
         command.extend(['--config', 'permissions.project.network.enabled=false',
                         '--config', 'approval_policy="never"',
                         '--config', 'web_search="disabled"'])

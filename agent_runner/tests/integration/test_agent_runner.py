@@ -2,6 +2,7 @@ import json
 import os
 import signal
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -131,13 +132,13 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
         assert '--ignore-user-config' in arguments
         assert 'default_permissions="project"' in arguments
         assert 'approval_policy="never"' in arguments
-        permissions = dict(value.split('=', 1) for value in arguments
-                           if value.startswith('permissions.project.filesystem.'))
-        prefix = 'permissions.project.filesystem.'
-        assert permissions[prefix + json.dumps(':root')] == '"deny"'
-        assert permissions[prefix + json.dumps(str(first_worktree.resolve()))] == '"write"'
+        override = next(value for value in arguments
+                        if value.startswith('permissions.project.filesystem='))
+        permissions = tomllib.loads(override)['permissions']['project']['filesystem']
+        assert permissions[':root'] == 'deny'
+        assert permissions[str(first_worktree.resolve())] == 'write'
         log_dir = logs[0].parent.resolve()
-        assert permissions[prefix + json.dumps(str(log_dir))] == '"deny"'
+        assert permissions[str(log_dir)] == 'deny'
         settings = dict(value.split('=', 1) for value in arguments if value.startswith('mcp_servers.'))
         project = str(Path(__file__).resolve().parents[3])
         assert json.loads(settings['mcp_servers.depencity.args']) == [
