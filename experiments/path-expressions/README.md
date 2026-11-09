@@ -1,11 +1,11 @@
-# Strict targeted calculator experiment
+# Expression-path calculator experiment
 
 ```sh
 uv run agent-runner run-experiment \
   --repo experiments/fixtures --target calculator.py --test-script test_calculator.py \
   --iterations 3 --metric graph.paths.expressions.count \
-  --task "$(cat experiments/strict-targeted/task.md)" \
-  --log-root "$PWD/out/experiments/strict-targeted"
+  --task "$(cat experiments/path-expressions/task.md)" \
+  --log-root "$PWD/out/experiments/path-expressions"
 ```
 
 The runner copies the target and test file into its run directory. Originals stay
