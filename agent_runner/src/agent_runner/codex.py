@@ -59,11 +59,22 @@ class Codex:
                 '--dockerfile', 'docker/test/Dockerfile',
             ], work_dir, ['docker'],
         ))
+        filesystem = {
+            ':root': 'deny',
+            ':minimal': 'read',
+            ':tmpdir': 'deny',
+            ':slash_tmp': 'deny',
+            str(work_dir.resolve()): 'write',
+            str(self.log_dir.resolve()): 'deny',
+        }
+        command.extend(['--config', 'default_permissions="project"'])
+        for path, access in filesystem.items():
+            command.extend(['--config',
+                            f'permissions.project.filesystem.{json.dumps(path)}={json.dumps(access)}'])
+        command.extend(['--config', 'permissions.project.network.enabled=false',
+                        '--config', 'approval_policy="never"',
+                        '--config', 'web_search="disabled"'])
         command.extend([
-            '--sandbox',
-            'workspace-write',
-            '--config',
-            'approval_policy="on-request"',
             '--cd',
             str(work_dir),
             '--output-schema',

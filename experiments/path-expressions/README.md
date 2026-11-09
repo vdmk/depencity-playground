@@ -4,6 +4,7 @@
 uv run agent-runner run-experiment \
   --repo experiments/fixtures --target calculator.py --test-script test_calculator.py \
   --iterations 3 --metric graph.paths.expressions.count \
+  --depencity-accept depencity \
   --task "$(cat experiments/path-expressions/task.md)" \
   --log-root "$PWD/out/experiments/path-expressions"
 ```
@@ -21,3 +22,9 @@ Rejected candidates are logged and rolled back. The setting persists across `--c
 
 Run `uv sync` after updating `../depencity`. Workers use the runner's explicit MCP
 configuration; evaluation uses the Depencity CLI and Docker tests.
+
+Each evaluated worker uses one persistent `workspace/` containing only the target
+and original test file. Logs, summaries, diffs, and evaluations stay outside that
+project folder. Original tests are restored before every turn. Rejected target
+changes are rolled back; accepted changes remain for the next turn. Workers can read and write only inside their project folder, apart from
+minimal system runtime paths needed by command execution. Logs are denied.

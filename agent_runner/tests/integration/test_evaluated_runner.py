@@ -1,6 +1,7 @@
 """Exercise evaluated runs against the installed Depencity CLI and real tests."""
 
 import json
+import os
 import shlex
 import subprocess
 from threading import Barrier
@@ -27,6 +28,7 @@ def docker_backend(monkeypatch):
         result = subprocess.run(
             shlex.split(command), cwd=workspace_root,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'},
         )
         return json.dumps({'returncode': result.returncode, 'output': result.stdout})
 
@@ -58,6 +60,7 @@ def test_evaluated_iterations_progress_regardless_of_metrics(tmp_path, monkeypat
 
     def run_agent(_self, _name, work_dir, task):
         assert work_dir != repo
+        assert {p.name for p in work_dir.iterdir()} == {'target.py', 'test_target.py'}
         assert 'Target: target.py. Tests: test_target.py.' in task
         starts.append((work_dir / 'target.py').read_text())
         (work_dir / 'target.py').write_text(next(candidates))
@@ -148,7 +151,7 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
 
     def worse(self, name, work_dir, task):
         calls.append(name)
-        expected = WORSE if work_dir.name == 'plain' and name != 'plain.2' else IMPROVED
+        expected = WORSE if work_dir.parent.name == 'plain' and name != 'plain.2' else IMPROVED
         assert (work_dir / 'target.py').read_text() == expected
         (work_dir / 'target.py').write_text(WORSE)
         return CodexResult(0, 'candidate')
@@ -169,7 +172,7 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
             assert report['status'] == ('rejected' if filtered else 'accepted')
             assert report['depencity_accept'] == ('depencity' if filtered else 'all')
             assert report['after']['graph.paths.expressions.count'] == 3
-            assert (root / variant / 'target.py').read_text() == (IMPROVED if filtered else WORSE)
+            assert (root / variant / 'workspace/target.py').read_text() == (IMPROVED if filtered else WORSE)
         assert json.loads(manifest.read_text())['depencity_accept'] == ('all' if total == 4 else 'depencity')
     assert sorted(calls) == ['depencity.2', 'depencity.3', 'depencity.4', 'plain.2', 'plain.3', 'plain.4']
 
@@ -319,7 +322,7 @@ def test_comparison_runs_variants_in_parallel_and_continues(tmp_path, monkeypatc
     prompts = {}
 
     def run_agent(self, name, work_dir, task):
-        variant = work_dir.name
+        variant = work_dir.parent.name
         assert self.with_depencity == (variant == 'depencity')
         prompts[variant] = task
         calls.append((variant, name, (work_dir / 'target.py').read_text()))
@@ -343,7 +346,7 @@ def test_comparison_runs_variants_in_parallel_and_continues(tmp_path, monkeypatc
     assert all(path.read_bytes() == data for path, data in saved.items())
     assert (repo / 'target.py').read_text() == ORIGINAL
     for variant in ('plain', 'depencity'):
-        assert (root / variant / 'target.py').read_text() == IMPROVED
+        assert (root / variant / 'workspace/target.py').read_text() == IMPROVED
         report = json.loads((root / variant / f'{variant}.2.evaluation.json').read_text())
         assert report['status'] == 'accepted'
 
@@ -355,7 +358,7 @@ def test_comparison_continue_restores_interrupted_candidate(tmp_path, monkeypatc
     calls = []
 
     def interrupted(self, name, work_dir, task):
-        calls.append(work_dir.name)
+        calls.append(work_dir.parent.name)
         (work_dir / 'target.py').write_text(IMPROVED)
         return CodexResult(0, 'simplify')
 
@@ -365,7 +368,7 @@ def test_comparison_continue_restores_interrupted_candidate(tmp_path, monkeypatc
     root, = logs.iterdir()
     # Simulate interruption after the next agent edited the file but before evaluation.
     (root / 'plain/plain.2.before.py').write_text(IMPROVED)
-    (root / 'plain/target.py').write_text('broken candidate!\n')
+    (root / 'plain/workspace/target.py').write_text('broken candidate!\n')
 
     def resumed(self, name, work_dir, task):
         assert (work_dir / 'target.py').read_text() == IMPROVED
@@ -377,7 +380,7 @@ def test_comparison_continue_restores_interrupted_candidate(tmp_path, monkeypatc
     result = CliRunner().invoke(main, [*arguments, '--iterations', '2', '--continue'])
     assert result.exit_code == 0, result.output
     assert sorted(calls) == ['depencity.2', 'plain.2']
-    assert (root / 'plain/target.py').read_text() == IMPROVED
+    assert (root / 'plain/workspace/target.py').read_text() == IMPROVED
 
 
 def test_comparison_continue_requires_matching_run(tmp_path, monkeypatch):
@@ -401,7 +404,7 @@ def test_comparison_continue_retries_only_failed_variant(tmp_path, monkeypatch):
 
     def initial(self, name, work_dir, task):
         (work_dir / 'target.py').write_text(IMPROVED)
-        return CodexResult(1 if work_dir.name == 'plain' else 0, 'candidate')
+        return CodexResult(1 if work_dir.parent.name == 'plain' else 0, 'candidate')
 
     monkeypatch.setattr(Codex, 'run', initial)
     result = CliRunner().invoke(main, arguments)
@@ -451,3 +454,43 @@ def test_evaluator_uses_original_tests(tmp_path, monkeypatch, candidate, tamper,
     report = json.loads(report_path.read_text())
     assert report['accepted'] == accepted
     assert report['test_return_code'] == (0 if accepted else 1)
+
+
+@pytest.mark.parametrize('filename', ['target.py', 'test_target.py'])
+@pytest.mark.parametrize('dangling', [False, True])
+def test_evaluation_rejects_worker_symlinks_without_touching_destination(
+    tmp_path, monkeypatch, filename, dangling,
+):
+    repo, logs, arguments = prepare(tmp_path)
+    outside = tmp_path / 'outside.py'
+    sentinel = b'outside file must remain untouched\n'
+    if not dangling:
+        outside.write_bytes(sentinel)
+
+    def run_agent(self, name, work_dir, task):
+        path = work_dir / filename
+        path.unlink()
+        path.symlink_to(outside)
+        return CodexResult(0, 'candidate')
+
+    monkeypatch.setattr(Codex, 'run', run_agent)
+    result = CliRunner().invoke(main, arguments)
+    assert result.exit_code == 1
+    assert 'symlinks are not allowed' in result.output
+    assert outside.exists() is not dangling
+    if not dangling:
+        assert outside.read_bytes() == sentinel
+
+
+def test_workspace_path_rejects_symlinked_parent(tmp_path):
+    from agent_runner.evaluator import checked_workspace_path
+
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (outside / 'test_target.py').write_text('original\n')
+    (workspace / 'tests').symlink_to(outside, target_is_directory=True)
+    with pytest.raises(OSError, match='symlinks are not allowed'):
+        checked_workspace_path(workspace, 'tests/test_target.py').write_text('replacement\n')
+    assert (outside / 'test_target.py').read_text() == 'original\n'

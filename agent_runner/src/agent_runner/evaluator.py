@@ -11,6 +11,21 @@ from pathlib import Path
 from agent_runner.mcp import _docker
 
 
+def checked_workspace_path(root, relative):
+    """Reject symlinks and non-regular files before host-side file access."""
+    root = Path(root).absolute()
+    relative = Path(relative)
+    if relative.is_absolute() or '..' in relative.parts:
+        raise OSError(f'path must be relative to workspace: {relative}')
+    path = root / relative
+    # Resolving must not change any component below the workspace root.
+    if root.is_symlink() or path.resolve() != root.resolve() / relative:
+        raise OSError(f'workspace symlinks are not allowed: {path}')
+    if path.exists() and not path.is_file():
+        raise OSError(f'workspace file must be regular: {path}')
+    return path
+
+
 @dataclass
 class Snapshot:
     source: bytes
@@ -22,13 +37,14 @@ class Evaluator:
 
     def __init__(self, repo, target, metrics, test_script, depencity_accept):
         self.repo = repo
-        self.target = (repo / target).resolve()
+        self.target = checked_workspace_path(repo, target)
         self.metrics = metrics
         self.test_script = test_script
-        self.test_source = (repo / test_script).read_bytes()
+        self.test_source = checked_workspace_path(repo, test_script).read_bytes()
         self.depencity_accept = depencity_accept
 
     def measure(self):
+        self.check_target()
         executable = shutil.which('depencity')
         result = subprocess.run(
             [executable, 'profile', '--format', 'json', '--depth', '1', str(self.target)],
@@ -43,14 +59,22 @@ class Evaluator:
         raise ValueError(f'no module profile for {self.target}')
 
     def snapshot(self):
-        return Snapshot(self.target.read_bytes(), self.measure())
+        return Snapshot(self.check_target().read_bytes(), self.measure())
+
+    def check_target(self):
+        return checked_workspace_path(self.repo, self.target.relative_to(self.repo))
+
+    def restore_target(self, source):
+        self.check_target().write_bytes(source)
+
+    def restore_tests(self):
+        checked_workspace_path(self.repo, self.test_script).write_bytes(self.test_source)
 
     def evaluate(self, before, log_path, agent_return_code):
         accepted = False
         try:
-            test_path = self.repo / self.test_script
-            test_path.parent.mkdir(parents=True, exist_ok=True)
-            test_path.write_bytes(self.test_source)
+            self.restore_tests()
+            self.check_target()
             candidate = self.target.read_bytes() if self.target.exists() else b''
             Path(f'{log_path}.before.py').write_bytes(before.source)
             Path(f'{log_path}.candidate.py').write_bytes(candidate)
@@ -91,4 +115,4 @@ class Evaluator:
             return report
         finally:
             if not accepted:
-                self.target.write_bytes(before.source)
+                self.restore_target(before.source)

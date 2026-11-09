@@ -81,3 +81,9 @@ Ordinary runners do not evaluate refactoring quality; `run --depencity-eval` opt
 the separate evaluator.
 
 The package also provides `agent-runner-mcp` for Docker testing. See the [project README](../README.md) for its test setup.
+
+Each evaluated worker uses one persistent `workspace/` containing only the target
+and original test file. Logs, summaries, diffs, and evaluations stay outside that
+project folder. Original tests are restored before every turn. Rejected target
+changes are rolled back; accepted changes remain for the next turn. Workers can read and write only inside their project folder, apart from
+minimal system runtime paths needed by command execution. Logs are denied.

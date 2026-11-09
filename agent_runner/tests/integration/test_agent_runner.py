@@ -129,8 +129,15 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
         next_arguments = (capture_dir / f'{name}.iteration-2.args').read_text().splitlines()
         assert '--ephemeral' in arguments
         assert '--ignore-user-config' in arguments
-        assert arguments[arguments.index('--sandbox') + 1] == 'workspace-write'
-        assert 'approval_policy="on-request"' in arguments
+        assert 'default_permissions="project"' in arguments
+        assert 'approval_policy="never"' in arguments
+        permissions = dict(value.split('=', 1) for value in arguments
+                           if value.startswith('permissions.project.filesystem.'))
+        prefix = 'permissions.project.filesystem.'
+        assert permissions[prefix + json.dumps(':root')] == '"deny"'
+        assert permissions[prefix + json.dumps(str(first_worktree.resolve()))] == '"write"'
+        log_dir = logs[0].parent.resolve()
+        assert permissions[prefix + json.dumps(str(log_dir))] == '"deny"'
         settings = dict(value.split('=', 1) for value in arguments if value.startswith('mcp_servers.'))
         project = str(Path(__file__).resolve().parents[3])
         assert json.loads(settings['mcp_servers.depencity.args']) == [

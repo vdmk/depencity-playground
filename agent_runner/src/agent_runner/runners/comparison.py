@@ -22,14 +22,14 @@ class ComparisonRunner(Runner):
             codex = Codex(model, directory, with_depencity=variant == 'depencity')
             self.variants[variant] = EvaluatedRunner(
                 codex, repo, task, iterations, target, metrics, test_script,
-                workspace=directory, resume=resume and (directory / target).exists(),
+                workspace=directory / 'workspace',
+                resume=resume and (directory / 'workspace' / target).exists(),
                 depencity_accept=depencity_accept if variant == 'depencity' else 'all',
             )
 
     def run_worker(self, name):
         variant = VARIANTS[int(name.rsplit('-', 1)[1]) - 1]
         runner = self.variants[variant]
-        target = runner.evaluator.target
         for iteration in range(1, self.iterations + 1):
             prefix = runner.codex.log_dir / f'{variant}.{iteration}'
             report_path = Path(f'{prefix}.evaluation.json')
@@ -40,15 +40,15 @@ class ComparisonRunner(Runner):
                     report = {}
                 if report.get('status') in ('accepted', 'rejected'):
                     suffix = 'candidate' if report['accepted'] else 'before'
-                    target.write_bytes(Path(f'{prefix}.{suffix}.py').read_bytes())
+                    runner.evaluator.restore_target(Path(f'{prefix}.{suffix}.py').read_bytes())
                     continue
             if self.stopping:
                 break
             checkpoint = Path(f'{prefix}.before.py')
             if checkpoint.exists():
-                target.write_bytes(checkpoint.read_bytes())
+                runner.evaluator.restore_target(checkpoint.read_bytes())
             else:
-                checkpoint.write_bytes(target.read_bytes())
+                checkpoint.write_bytes(runner.evaluator.check_target().read_bytes())
             result = runner.run_iteration(variant, iteration, runner.repo)
             if result.return_code:
                 return False
