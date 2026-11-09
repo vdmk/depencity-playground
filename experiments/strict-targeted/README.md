@@ -15,10 +15,9 @@ Both workers receive the same Markdown prompt; only tool availability differs.
 The evaluator restores the original tests before Docker validation.
 Repeat the command with `--continue` to resume the latest run; `--iterations`
 sets the total per variant, including completed iterations.
-Add `--accept-improvements-only` to accept only candidates with passing tests
-and lower metric values. Rejected candidates are logged, then rolled back before
-the next iteration. The flag can also be enabled with `--continue`; previous
-iterations are not re-evaluated.
+`--depencity-accept all|depencity` defaults to accepting passing tests. Choose
+`depencity` to require metric improvement for Depencity only; plain is unchanged.
+Rejected candidates are logged and rolled back. The setting persists across `--continue`.
 
 Run `uv sync` after updating `../depencity`. Workers use the runner's explicit MCP
 configuration; evaluation uses the Depencity CLI and Docker tests.

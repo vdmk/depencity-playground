@@ -91,7 +91,7 @@ def test_improvement_filter_rolls_back_and_continues(tmp_path, monkeypatch):
         return CodexResult(0, 'candidate')
 
     monkeypatch.setattr(Codex, 'run', run_agent)
-    result = CliRunner().invoke(main, [*arguments, '--accept-improvements-only'])
+    result = CliRunner().invoke(main, [*arguments, '--depencity-accept', 'depencity'])
     assert result.exit_code == 0, result.output
     assert starts == [ORIGINAL, IMPROVED, IMPROVED]
     reports = [json.loads(p.read_text()) for p in sorted(logs.rglob('*.evaluation.json'))]
@@ -118,7 +118,7 @@ def test_improvement_filter_requires_no_metric_regression(tmp_path, monkeypatch,
 
     monkeypatch.setattr(Codex, 'run', run_agent)
     result = CliRunner().invoke(main, [
-        *arguments, '--iterations', '1', '--accept-improvements-only',
+        *arguments, '--iterations', '1', '--depencity-accept', 'depencity',
         '--metric', metrics[0], '--metric', metrics[1],
     ])
     assert result.exit_code == 0, result.output
@@ -148,33 +148,39 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
 
     def worse(self, name, work_dir, task):
         calls.append(name)
-        assert (work_dir / 'target.py').read_text() == IMPROVED
+        expected = WORSE if work_dir.name == 'plain' and name != 'plain.2' else IMPROVED
+        assert (work_dir / 'target.py').read_text() == expected
         (work_dir / 'target.py').write_text(WORSE)
         return CodexResult(0, 'candidate')
 
     monkeypatch.setattr(Codex, 'run', worse)
-    for total, flags in [(2, ['--accept-improvements-only']), (3, [])]:
+    for total, flags in [
+        (2, ['--depencity-accept', 'depencity']), (3, []),
+        (4, ['--depencity-accept', 'all']),
+    ]:
         result = CliRunner().invoke(main, [
             'run-experiment', '--log-root', str(logs), '--continue',
             '--iterations', str(total), *flags,
         ])
         assert result.exit_code == 0, result.output
         for variant in ('plain', 'depencity'):
+            filtered = variant == 'depencity' and total != 4
             report = json.loads((root / variant / f'{variant}.{total}.evaluation.json').read_text())
-            assert report['status'] == 'rejected'
+            assert report['status'] == ('rejected' if filtered else 'accepted')
+            assert report['depencity_accept'] == ('depencity' if filtered else 'all')
             assert report['after']['graph.paths.expressions.count'] == 3
-            assert (root / variant / 'target.py').read_text() == IMPROVED
-    assert sorted(calls) == ['depencity.2', 'depencity.3', 'plain.2', 'plain.3']
-    assert json.loads(manifest.read_text())['accept_improvements_only'] is True
+            assert (root / variant / 'target.py').read_text() == (IMPROVED if filtered else WORSE)
+        assert json.loads(manifest.read_text())['depencity_accept'] == ('all' if total == 4 else 'depencity')
+    assert sorted(calls) == ['depencity.2', 'depencity.3', 'depencity.4', 'plain.2', 'plain.3', 'plain.4']
 
 
 def test_improvement_filter_requires_evaluation(tmp_path):
     result = CliRunner().invoke(main, [
         'run', '--repo', str(tmp_path), '--log-root', str(tmp_path / 'logs'),
-        '--accept-improvements-only',
+        '--depencity-accept', 'depencity',
     ])
     assert result.exit_code == 2
-    assert '--accept-improvements-only requires --depencity-eval' in result.output
+    assert '--depencity-accept requires --depencity-eval' in result.output
 
 
 @pytest.mark.parametrize('failure', ['tests', 'syntax', 'agent', 'exception', 'docker'])

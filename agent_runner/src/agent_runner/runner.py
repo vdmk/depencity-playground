@@ -40,8 +40,9 @@ def _common_options(command):
 @main.command()
 @click.option('--iterations', type=click.IntRange(1, 1000), default=1, show_default=True)
 @click.option('--depencity-eval', is_flag=True, help='Measure Depencity metrics and validate changes with Docker tests.')
-@click.option('--accept-improvements-only', is_flag=True,
-              help='Require tests to pass, no selected metric to increase, and at least one to decrease.')
+@click.option('--depencity-accept', type=click.Choice(['all', 'depencity']),
+              default='all', show_default=True,
+              help='Accept passing tests, or also require metric improvement with depencity.')
 @click.option('--target', type=click.Path(path_type=Path), help='Python file to evaluate, relative to --repo.')
 @click.option('--metric', 'metrics', multiple=True,
               default=('graph.paths.expressions.count',), show_default=True,
@@ -50,19 +51,19 @@ def _common_options(command):
 @_common_options
 @cli_errors
 def run(repo, task, model, iterations, log_root, depencity_eval, target, metrics, test_script,
-        accept_improvements_only) -> None:
+        depencity_accept) -> None:
     """Run cumulative iterations in the supplied directory without Git commits."""
     if depencity_eval and (target is None or test_script is None):
         raise click.UsageError('--depencity-eval requires --target and --test-script')
-    if accept_improvements_only and not depencity_eval:
-        raise click.UsageError('--accept-improvements-only requires --depencity-eval')
+    if depencity_accept == 'depencity' and not depencity_eval:
+        raise click.UsageError('--depencity-accept requires --depencity-eval')
     repo, log_root, _ = _build_context(repo, log_root)
     codex = Codex(model, log_root)
     if depencity_eval:
         runner = EvaluatedRunner(
             codex, repo, task, iterations, target, metrics, test_script,
             workspace=codex.log_dir / 'workspace', resume=False,
-            accept_improvements_only=accept_improvements_only,
+            depencity_accept=depencity_accept,
         )
     else:
         runner = InPlaceRunner(codex, repo, task, iterations)
@@ -75,8 +76,9 @@ def run(repo, task, model, iterations, log_root, depencity_eval, target, metrics
 @click.option('--iterations', type=click.IntRange(1, 1000), default=1, show_default=True,
               help='Total iterations per variant, including completed iterations when continuing.')
 @click.option('--continue', 'resume', is_flag=True, help='Continue the latest comparison in --log-root.')
-@click.option('--accept-improvements-only', is_flag=True,
-              help='Require tests to pass, no selected metric to increase, and at least one to decrease.')
+@click.option('--depencity-accept', type=click.Choice(['all', 'depencity']),
+              default='all', show_default=True,
+              help='Accept passing tests, or require metric improvement for Depencity only. Plain accepts passing tests.')
 @click.option('--target', type=click.Path(path_type=Path))
 @click.option('--test-script', type=click.Path(path_type=Path))
 @click.option('--metric', 'metrics', multiple=True, default=('graph.paths.expressions.count',))
@@ -104,7 +106,7 @@ def run_experiment(repo, log_root, resume, **settings):
             if key == 'iterations':
                 if value < saved[key]:
                     raise click.UsageError('--iterations cannot be less than the saved total')
-            elif key != 'accept_improvements_only' and value != saved[key]:
+            elif key != 'depencity_accept' and value != saved[key]:
                 raise click.ClickException('comparison settings differ from the saved run')
             saved[key] = value
         settings = saved

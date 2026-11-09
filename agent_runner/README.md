@@ -52,10 +52,10 @@ agent-runner run-experiment --iterations 6 --log-root /tmp/comparisons --continu
 
 `--continue` reuses saved settings and progress. `--iterations` is the total per variant.
 
-`--accept-improvements-only` requires passing tests, no selected metric increases,
-and at least one decrease; otherwise it logs and rolls back the candidate.
-Available for `run-experiment` and `run --depencity-eval`; off by default.
-With `--continue`, it applies to future iterations and persists across resumes.
+`--depencity-accept all|depencity` defaults to `all` (accept passing tests).
+`depencity` also requires no selected metric increases and at least one decrease;
+rejected candidates are logged and rolled back. Plain always accepts passing tests.
+Also available for `run --depencity-eval`; saved across `--continue`.
 
 The runner asks each worker to leave changes uncommitted and finish with a short
 change summary in a structured `short_summary` field. Codex saves that reply to
