@@ -49,13 +49,15 @@ width:12px;height:12px;border-radius:50%;margin-right:7px}.task{white-space:pre-
 <section><label>Metric <select id="metric"></select></label>
 <label><input type="checkbox" id="log" checked>Logarithmic scale</label>
 <label><input type="checkbox" id="labels">Show every value</label>
+<label><input type="checkbox" id="retained" checked>Show retained values</label>
 <p class="muted">Iteration 0 is each variant’s starting value. Later points show candidate measurements,
-including rejected candidates when measured. Missing measurements break the line. Hover or focus a point for details.
+or retained values after acceptance and rollback. Uncheck “Show retained values” to see rejected candidate scores.
+Missing measurements break the line. Hover or focus a point for details.
 The logarithmic view uses log(1 + value), so zero remains visible.</p>
 <div id="legend" class="legend"></div><div id="chart" class="chart"></div>
 <p id="summary"></p></section>
 <section><h2>Every iteration</h2><div class="table-wrap"><table><thead><tr>
-<th>Variant</th><th>Iteration</th><th>Before</th><th>Candidate</th><th>Change</th>
+<th>Variant</th><th>Iteration</th><th>Before</th><th>Candidate</th><th>Retained</th><th>Change</th>
 <th>Status</th><th>Test exit code</th></tr></thead><tbody id="rows"></tbody></table></div>
 <p class="muted">Accepted means the run passed validation; it does not necessarily mean the metric improved.
 These are static dependency metrics, not runtime measurements.</p></section>
@@ -72,17 +74,17 @@ const fmt=v=>v==null?'—':v.toLocaleString('en-US',{maximumFractionDigits:3});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 el('description').textContent=`${variants.length} variants · ${rows.length} recorded iterations · ${config.target||''}`;
-el('metadata').textContent=`Model: ${config.model||'unspecified'} · Target: ${config.target||'unspecified'} · Tests: ${config.test_script||'unspecified'}`;
+el('metadata').textContent=`Model: ${config.model||'unspecified'} · Target: ${config.target||'unspecified'} · Tests: ${config.test_script||'unspecified'} · Depencity acceptance: ${config.depencity_accept||'unspecified'} · Plain: passing tests`;
 el('task').textContent=config.task||'';
 metrics.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;el('metric').append(o)});
 el('legend').innerHTML=variants.map((v,i)=>`<span><i class="swatch" style="background:${colors[i%colors.length]}"></i>${esc(v)}</span>`).join('');
 function draw(){
- const metric=el('metric').value, logarithmic=el('log').checked;
+ const metric=el('metric').value, logarithmic=el('log').checked, retained=el('retained').checked;
  const series=variants.map((v,i)=>{
   const rs=rows.filter(r=>r.variant===v);
   return {name:v,color:colors[i%colors.length],points:[
    {iteration:0,value:rs[0].before?.[metric],status:'baseline'},
-   ...rs.map(r=>({...r,value:r.after?.[metric]}))]};
+   ...rs.map(r=>({...r,value:(retained&&!r.accepted?r.before:r.after)?.[metric]}))]};
  });
  const values=series.flatMap(s=>s.points.map(p=>p.value)).filter(finite);
  if(!values.length){el('chart').textContent='No numeric measurements for this metric.';return;}
@@ -111,7 +113,7 @@ function draw(){
   });
   svg+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>`;
   s.points.filter(p=>finite(p.value)).forEach(p=>{
-   const title=`${s.name} · iteration ${p.iteration} · ${fmt(p.value)} · ${p.status}`;
+   const title=`${s.name} · iteration ${p.iteration} · ${retained?'retained':'candidate'} ${fmt(p.value)} · ${p.status}`;
    svg+=`<circle cx="${x(p.iteration)}" cy="${y(p.value)}" r="5" stroke="${s.color}" stroke-width="2"
     fill="${p.status==='accepted'||p.status==='baseline'?s.color:'white'}" tabindex="0" aria-label="${esc(title)}"><title>${esc(title)}</title></circle>`;
    if(el('labels').checked)svg+=`<text x="${x(p.iteration)}" y="${y(p.value)-12}" text-anchor="middle" font-size="11" fill="${s.color}">${fmt(p.value)}</text>`;
@@ -121,16 +123,16 @@ function draw(){
  el('rows').innerHTML=rows.map(r=>{
   const a=r.before?.[metric],b=r.after?.[metric];
   const change=finite(a)&&finite(b)?`${b-a>0?'+':''}${fmt(b-a)}${a!==0?' ('+((b-a)/Math.abs(a)*100).toFixed(1)+'%)':''}`:'—';
-  return `<tr><td>${esc(r.variant)}</td><td>${r.iteration}</td><td>${fmt(a)}</td><td>${fmt(b)}</td><td>${change}</td><td>${esc(r.status)}</td><td>${fmt(r.test_return_code)}</td></tr>`;
+  return `<tr><td>${esc(r.variant)}</td><td>${r.iteration}</td><td>${fmt(a)}</td><td>${fmt(b)}</td><td>${fmt(r.accepted?b:a)}</td><td>${change}</td><td>${esc(r.status)}</td><td>${fmt(r.test_return_code)}</td></tr>`;
  }).join('');
  el('summary').textContent=series.map(s=>{
   const measured=s.points.filter(p=>p.iteration>0&&finite(p.value));
   if(!measured.length)return `${s.name}: no measured candidates`;
   const latest=measured.at(-1),best=measured.reduce((a,b)=>a.value<=b.value?a:b);
-  return `${s.name}: latest measured ${fmt(latest.value)} (iteration ${latest.iteration}); lowest measured ${fmt(best.value)} (iteration ${best.iteration}, ${best.status})`;
+  return `${s.name}: latest ${retained?'retained':'candidate'} ${fmt(latest.value)} (iteration ${latest.iteration}); lowest ${fmt(best.value)} (iteration ${best.iteration}, ${best.status})`;
  }).join('. ')+'.';
 }
-['metric','log','labels'].forEach(id=>el(id).addEventListener('change',draw));draw();
+['metric','log','labels','retained'].forEach(id=>el(id).addEventListener('change',draw));draw();
 </script></html>
 '''
 
