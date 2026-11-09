@@ -3,8 +3,7 @@
 These instructions cover runner development and its worker/reviewer workflows.
 For analyzer implementation changes, follow `depencity/AGENTS.md` as well.
 
-The agent-runner MCP does not expose a commit tool. For development changes,
-inspect the complete diff and commit directly with Git. Automated workers leave
+The agent-runner MCP does not expose a commit tool. Automated workers leave
 changes uncommitted and return the requested summary; the runner creates their
 commits when worktrees are enabled.
 
@@ -58,8 +57,6 @@ For each refactoring iteration:
    semantic coverage gets worse.
 6. When a refactoring succeeds, search for analogous cases. Apply and measure
    each one separately; revert any that do not improve the code and profile.
-7. Commit the coherent set as one focused `refactor:` iteration before starting
-   the next experiment. Revert rejected experiments completely.
 
 Profile improvement is necessary, not sufficient. Reject marginal syntax-only
 edits—such as inlining a useful one-use name or replacing a clear branch with a

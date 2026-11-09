@@ -80,6 +80,103 @@ def test_evaluated_iterations_progress_regardless_of_metrics(tmp_path, monkeypat
     assert not (repo / '.git').exists()
 
 
+def test_improvement_filter_rolls_back_and_continues(tmp_path, monkeypatch):
+    repo, logs, arguments = prepare(tmp_path)
+    starts = []
+    candidates = iter([IMPROVED, WORSE, IMPROVED])
+
+    def run_agent(self, name, work_dir, task):
+        starts.append((work_dir / 'target.py').read_text())
+        (work_dir / 'target.py').write_text(next(candidates))
+        return CodexResult(0, 'candidate')
+
+    monkeypatch.setattr(Codex, 'run', run_agent)
+    result = CliRunner().invoke(main, [*arguments, '--accept-improvements-only'])
+    assert result.exit_code == 0, result.output
+    assert starts == [ORIGINAL, IMPROVED, IMPROVED]
+    reports = [json.loads(p.read_text()) for p in sorted(logs.rglob('*.evaluation.json'))]
+    assert [r['status'] for r in reports] == ['accepted', 'rejected', 'rejected']
+    assert [r['after']['graph.paths.expressions.count'] for r in reports] == [1, 3, 1]
+    workspace, = logs.glob('*/workspace')
+    assert (workspace / 'target.py').read_text() == IMPROVED
+
+
+@pytest.mark.parametrize('after, accepted', [
+    ((1, 3), True), ((2, 2), True), ((1, 4), False), ((2, 3), False),
+])
+def test_improvement_filter_requires_no_metric_regression(tmp_path, monkeypatch, after, accepted):
+    from agent_runner.evaluator import Evaluator
+
+    repo, logs, arguments = prepare(tmp_path)
+    metrics = ('graph.paths.expressions.count', 'variable.total.write.count')
+    measurements = iter([dict(zip(metrics, (2, 3))), dict(zip(metrics, after))])
+    monkeypatch.setattr(Evaluator, 'measure', lambda self: next(measurements))
+
+    def run_agent(self, name, work_dir, task):
+        (work_dir / 'target.py').write_text(IMPROVED)
+        return CodexResult(0, 'candidate')
+
+    monkeypatch.setattr(Codex, 'run', run_agent)
+    result = CliRunner().invoke(main, [
+        *arguments, '--iterations', '1', '--accept-improvements-only',
+        '--metric', metrics[0], '--metric', metrics[1],
+    ])
+    assert result.exit_code == 0, result.output
+    report_path, = logs.rglob('*.evaluation.json')
+    report = json.loads(report_path.read_text())
+    assert report['accepted'] is accepted
+    assert report['after'] == dict(zip(metrics, after))
+    workspace, = logs.glob('*/workspace')
+    assert (workspace / 'target.py').read_text() == (IMPROVED if accepted else ORIGINAL)
+
+
+def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
+    repo, logs, arguments = prepare(tmp_path)
+    arguments[:2] = ['run-experiment']
+    arguments.extend(['--iterations', '1'])
+
+    def initial(self, name, work_dir, task):
+        (work_dir / 'target.py').write_text(IMPROVED)
+        return CodexResult(0, 'candidate')
+
+    monkeypatch.setattr(Codex, 'run', initial)
+    result = CliRunner().invoke(main, arguments)
+    assert result.exit_code == 0, result.output
+    root, = logs.iterdir()
+    manifest = root / 'run.json'
+    calls = []
+
+    def worse(self, name, work_dir, task):
+        calls.append(name)
+        assert (work_dir / 'target.py').read_text() == IMPROVED
+        (work_dir / 'target.py').write_text(WORSE)
+        return CodexResult(0, 'candidate')
+
+    monkeypatch.setattr(Codex, 'run', worse)
+    for total, flags in [(2, ['--accept-improvements-only']), (3, [])]:
+        result = CliRunner().invoke(main, [
+            'run-experiment', '--log-root', str(logs), '--continue',
+            '--iterations', str(total), *flags,
+        ])
+        assert result.exit_code == 0, result.output
+        for variant in ('plain', 'depencity'):
+            report = json.loads((root / variant / f'{variant}.{total}.evaluation.json').read_text())
+            assert report['status'] == 'rejected'
+            assert report['after']['graph.paths.expressions.count'] == 3
+            assert (root / variant / 'target.py').read_text() == IMPROVED
+    assert sorted(calls) == ['depencity.2', 'depencity.3', 'plain.2', 'plain.3']
+    assert json.loads(manifest.read_text())['accept_improvements_only'] is True
+
+
+def test_improvement_filter_requires_evaluation(tmp_path):
+    result = CliRunner().invoke(main, [
+        'run', '--repo', str(tmp_path), '--log-root', str(tmp_path / 'logs'),
+        '--accept-improvements-only',
+    ])
+    assert result.exit_code == 2
+    assert '--accept-improvements-only requires --depencity-eval' in result.output
+
+
 @pytest.mark.parametrize('failure', ['tests', 'syntax', 'agent', 'exception', 'docker'])
 def test_evaluated_failures_restore_target_and_stop(tmp_path, monkeypatch, failure):
     repo, logs, arguments = prepare(tmp_path)

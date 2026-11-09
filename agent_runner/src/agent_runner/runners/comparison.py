@@ -13,7 +13,7 @@ VARIANTS = ('plain', 'depencity')
 
 class ComparisonRunner(Runner):
     def __init__(self, repo, log_root, task, model, iterations, target, metrics,
-                 test_script, *, resume=False):
+                 test_script, resume, accept_improvements_only):
         super().__init__(None, repo, len(VARIANTS), task, iterations)
         self.variants = {}
         for variant in VARIANTS:
@@ -23,6 +23,7 @@ class ComparisonRunner(Runner):
             self.variants[variant] = EvaluatedRunner(
                 codex, repo, task, iterations, target, metrics, test_script,
                 workspace=directory, resume=resume and (directory / target).exists(),
+                accept_improvements_only=accept_improvements_only,
             )
 
     def run_worker(self, name):
