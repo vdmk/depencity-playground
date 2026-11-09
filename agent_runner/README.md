@@ -6,6 +6,7 @@ The runner records output; evaluation is separate.
 
 ```sh
 agent-runner run --iterations 20 --log-root /tmp/agent-runs
+agent-runner run --continue --iterations 30 --log-root /tmp/agent-runs
 agent-runner run-workspaces --workers 50 --iterations 30 --log-root /tmp/agent-runs
 ```
 
@@ -14,6 +15,12 @@ Both commands require `--log-root` and accept `--repo`, `--task`, and `--model`.
 `run` runs one worker in the supplied directory. Each iteration starts
 from the previous iteration's edits. Git and commits are optional; the runner
 leaves changes uncommitted. The default is one iteration.
+`run --continue` resumes the latest single-worker run using its saved settings.
+`--iterations` sets the total, including completed iterations. Evaluated runs
+restore accepted code and retry interrupted or agent-failed iterations;
+accepted and rejected evaluations are skipped. Ordinary in-place runs retain
+their current files and skip iterations with a completed summary. Runs created
+before settings were saved require a `run.json` with their original settings.
 
 `run-workspaces` runs independent candidates using Git worktrees. `--workers`
 sets concurrency (default 5); `--iterations` sets iterations per worker (default 1).

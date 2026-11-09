@@ -252,6 +252,61 @@ def test_failed_tests_roll_back_and_continue(tmp_path, monkeypatch, paired, bad_
         assert starts == []
 
 
+def test_single_run_continues_from_saved_checkpoint(tmp_path, monkeypatch):
+    repo, logs, arguments = prepare(tmp_path)
+    calls = []
+
+    def initial(self, name, work_dir, task):
+        (work_dir / 'target.py').write_text(IMPROVED)
+        return CodexResult(0, 'candidate')
+
+    monkeypatch.setattr(Codex, 'run', initial)
+    result = CliRunner().invoke(main, [*arguments, '--iterations', '1',
+                                     '--task', 'saved task', '--depencity-accept', 'depencity'])
+    assert result.exit_code == 0, result.output
+    root, = logs.iterdir()
+    saved = (root / 'agent-01.1.evaluation.json').read_bytes()
+    # A subsequent interrupted attempt must restart from its checkpoint.
+    (root / 'agent-01.2.before.py').write_text(IMPROVED)
+    (root / 'workspace/target.py').write_text('unfinished source!\n')
+
+    def continued(self, name, work_dir, task):
+        calls.append(name)
+        assert 'saved task' in task
+        assert (work_dir / 'target.py').read_text() == IMPROVED
+        (work_dir / 'target.py').write_text('value = 4\n')
+        return CodexResult(0, 'failed candidate')
+
+    monkeypatch.setattr(Codex, 'run', continued)
+    result = CliRunner().invoke(main, [
+        'run', '--log-root', str(logs), '--continue', '--iterations', '3',
+    ])
+    assert result.exit_code == 0, result.output
+    assert calls == ['agent-01.2', 'agent-01.3']
+    assert (root / 'agent-01.1.evaluation.json').read_bytes() == saved
+    assert (root / 'workspace/target.py').read_text() == IMPROVED
+    calls.clear()
+    result = CliRunner().invoke(main, ['run', '--log-root', str(logs), '--continue'])
+    assert result.exit_code == 0, result.output
+    assert calls == []
+    result = CliRunner().invoke(main, [
+        'run', '--log-root', str(logs), '--continue', '--model', 'different-model',
+    ])
+    assert result.exit_code != 0
+    assert 'settings differ' in result.output
+    result = CliRunner().invoke(main, [
+        'run', '--log-root', str(logs), '--continue', '--iterations', '2',
+    ])
+    assert result.exit_code != 0
+    assert 'less than the saved total' in result.output
+
+
+def test_single_continue_requires_saved_run(tmp_path):
+    result = CliRunner().invoke(main, ['run', '--log-root', str(tmp_path), '--continue'])
+    assert result.exit_code != 0
+    assert 'no single-worker run to continue' in result.output
+
+
 def test_evaluation_error_restores_candidate(tmp_path, monkeypatch):
     from agent_runner.evaluator import Evaluator
 

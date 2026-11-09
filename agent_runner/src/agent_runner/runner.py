@@ -39,6 +39,7 @@ def _common_options(command):
 
 @main.command()
 @click.option('--iterations', type=click.IntRange(1, 1000), default=1, show_default=True)
+@click.option('--continue', 'resume', is_flag=True, help='Continue the latest single-worker run in --log-root.')
 @click.option('--depencity-eval', is_flag=True, help='Measure Depencity metrics and validate changes with Docker tests.')
 @click.option('--depencity-accept', type=click.Choice(['all', 'depencity']),
               default='all', show_default=True,
@@ -51,22 +52,55 @@ def _common_options(command):
 @_common_options
 @cli_errors
 def run(repo, task, model, iterations, log_root, depencity_eval, target, metrics, test_script,
-        depencity_accept) -> None:
+        depencity_accept, resume) -> None:
     """Run cumulative iterations in the supplied directory without Git commits."""
-    if depencity_eval and (target is None or test_script is None):
+    repo = repo.resolve()
+    settings = dict(repo=str(repo), task=task, model=model, iterations=iterations,
+                    depencity_eval=depencity_eval, target=str(target) if target else None,
+                    metrics=list(metrics), test_script=str(test_script) if test_script else None,
+                    depencity_accept=depencity_accept)
+    for key in ('target', 'test_script'):
+        if settings[key] is not None:
+            settings[key] = str((repo / settings[key]).resolve().relative_to(repo))
+    if resume:
+        base = (repo / log_root).resolve()
+        manifests = sorted(base.glob('*/run.json'))
+        manifests = [p for p in manifests if json.loads(p.read_text()).get('command') == 'run']
+        if not manifests:
+            raise click.ClickException(f'no single-worker run to continue under {base}')
+        log_root = manifests[-1].parent
+        saved = json.loads(manifests[-1].read_text())
+        saved.pop('command')
+        context = click.get_current_context()
+        for key, value in settings.items():
+            if context.get_parameter_source(key) != click.core.ParameterSource.COMMANDLINE:
+                continue
+            if key == 'iterations':
+                if value < saved[key]:
+                    raise click.UsageError('--iterations cannot be less than the saved total')
+            elif key != 'depencity_accept' and value != saved[key]:
+                raise click.ClickException('run settings differ from the saved run')
+            saved[key] = value
+        settings = saved
+    if settings['depencity_eval'] and (settings['target'] is None or settings['test_script'] is None):
         raise click.UsageError('--depencity-eval requires --target and --test-script')
-    if depencity_accept == 'depencity' and not depencity_eval:
+    if settings['depencity_accept'] == 'depencity' and not settings['depencity_eval']:
         raise click.UsageError('--depencity-accept requires --depencity-eval')
-    repo, log_root, _ = _build_context(repo, log_root)
+    if not resume:
+        repo, log_root, _ = _build_context(repo, log_root)
+    (log_root / 'run.json').write_text(json.dumps(dict(command='run', **settings), indent=2) + '\n')
+    click.echo(f'Run: {log_root}')
+    repo = Path(settings['repo'])
+    task, model, iterations = (settings[key] for key in ('task', 'model', 'iterations'))
     codex = Codex(model, log_root)
-    if depencity_eval:
+    if settings['depencity_eval']:
         runner = EvaluatedRunner(
-            codex, repo, task, iterations, target, metrics, test_script,
-            workspace=codex.log_dir / 'workspace', resume=False,
-            depencity_accept=depencity_accept,
+            codex, repo, task, iterations, Path(settings['target']), tuple(settings['metrics']),
+            Path(settings['test_script']), workspace=codex.log_dir / 'workspace', resume=resume,
+            depencity_accept=settings['depencity_accept'],
         )
     else:
-        runner = InPlaceRunner(codex, repo, task, iterations)
+        runner = InPlaceRunner(codex, repo, task, iterations, resume=resume)
     successful = runner.run()
     if not successful:
         raise click.exceptions.Exit(1)

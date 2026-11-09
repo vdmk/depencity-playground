@@ -15,3 +15,10 @@ Each turn requests 10 internal candidate attempts, retaining the best tested
 state. The runner independently tests and measures the final candidate, rolling
 back non-improving turns. Original fixtures stay untouched; accepted code carries
 forward in the worker's two-file workspace. Logs remain outside the workspace.
+
+Continue the latest run with its saved settings:
+
+```sh
+uv run agent-runner run --continue --iterations 20 \
+  --log-root "$PWD/out/experiments/path-expressions-strict-target-10"
+```
