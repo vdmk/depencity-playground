@@ -136,6 +136,8 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
                         if value.startswith('permissions.project.filesystem='))
         permissions = tomllib.loads(override)['permissions']['project']['filesystem']
         assert permissions[':root'] == 'deny'
+        assert permissions[str(codex.absolute())] == 'read'
+        assert permissions[str(codex.resolve())] == 'read'
         assert permissions[str(first_worktree.resolve())] == 'write'
         log_dir = logs[0].parent.resolve()
         assert permissions[str(log_dir)] == 'deny'

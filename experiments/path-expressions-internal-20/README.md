@@ -1,7 +1,10 @@
-# Expression-path internal search, 20 attempts
+# Expression-path internal search
+
+The current task asks for continued useful improvements without a fixed internal
+attempt count or bookkeeping. Run 10 outer iterations with Depencity only:
 
 ```sh
-uv run agent-runner run-experiment \
+uv run agent-runner run --depencity-eval \
   --repo experiments/fixtures --target calculator.py --test-script test_calculator.py \
   --iterations 10 --metric graph.paths.expressions.count \
   --depencity-accept depencity \
@@ -9,22 +12,8 @@ uv run agent-runner run-experiment \
   --log-root "$PWD/out/experiments/path-expressions-internal-20"
 ```
 
-The runner copies the target and test file into its run directory. Originals stay
-untouched; logs, diffs, measurements, and accepted snapshots are saved alongside
-each variant's files in `plain/` and `depencity/`. Both variants run in parallel.
-Both workers receive the same Markdown prompt; only tool availability differs.
-The evaluator restores the original tests before Docker validation.
-Repeat the command with `--continue` to resume the latest run; `--iterations`
-sets the total per variant, including completed iterations.
-`--depencity-accept all|depencity` defaults to accepting passing tests. Choose
-`depencity` to require metric improvement for Depencity only; plain is unchanged.
-Rejected candidates are logged and rolled back. The setting persists across `--continue`.
-
-Run `uv sync` after updating `../depencity`. Workers use the runner's explicit MCP
-configuration; evaluation uses the Depencity CLI and Docker tests.
-
-Each evaluated worker uses one persistent `workspace/` containing only the target
-and original test file. Logs, summaries, diffs, and evaluations stay outside that
-project folder. Original tests are restored before every turn. Rejected target
-changes are rolled back; accepted changes remain for the next turn. Workers can read and write only inside their project folder, apart from
-minimal system runtime paths needed by command execution. Logs are denied.
+Each run starts from the original fixtures. One persistent `workspace/` contains
+calculator.py and the original tests; logs and evaluation artifacts stay outside
+it. Tests are restored each turn. The evaluator keeps candidates only when tests
+pass and expression-path count decreases; rejected edits are rolled back.
+Historical paired runs and their original 20-attempt prompts remain in the logs.

@@ -18,7 +18,8 @@ class Codex:
 
     def __init__(self, model: str, log_dir: Path, with_depencity: bool = True) -> None:
         self.model = model
-        self.codex = shutil.which('codex')
+        executable = shutil.which('codex')
+        self.codex = str(Path(executable).resolve()) if executable else None
         self.log_dir = log_dir
         self.with_depencity = with_depencity
 
@@ -64,6 +65,7 @@ class Codex:
             ':minimal': 'read',
             ':tmpdir': 'deny',
             ':slash_tmp': 'deny',
+            self.codex: 'read',
             str(work_dir.resolve()): 'write',
             str(self.log_dir.resolve()): 'deny',
         }
