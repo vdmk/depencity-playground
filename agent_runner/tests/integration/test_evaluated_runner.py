@@ -576,3 +576,23 @@ def test_plain_only_variant_disables_tools_and_metric_gate(tmp_path, monkeypatch
     report = json.loads((run_dir / 'plain/agent-01.1.evaluation.json').read_text())
     assert report['accepted'] is True
     assert (run_dir / 'plain/workspace/target.py').read_text() == WORSE
+
+
+def test_evaluation_measures_root_aggregate(tmp_path, monkeypatch):
+    fixtures = Path(__file__).resolve().parents[3] / 'experiments/fixtures'
+    for name in ('calculator.py', 'test_calculator.py'):
+        (tmp_path / name).write_bytes((fixtures / name).read_bytes())
+
+    def run_agent(self, name, work_dir, task):
+        return CodexResult(0, 'preserve calculator for scope measurement')
+
+    monkeypatch.setattr(Codex, 'run', run_agent)
+    logs = tmp_path / 'logs'
+    result = invoke_manifest(dict(mode='evaluated', repo=str(tmp_path), log_root=str(logs),
+                                  target='calculator.py', test_script='test_calculator.py'))
+    assert result.exit_code == 0, result.output
+    report_path, = logs.rglob('*.evaluation.json')
+    report = json.loads(report_path.read_text())
+    # This fixture's module aggregate is 16,333; the full root includes more paths.
+    assert report['before'] == {'graph.paths.expressions.count': 20926}
+    assert report['after'] == report['before']

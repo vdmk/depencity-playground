@@ -70,6 +70,7 @@ Workers are independent processes managed by the runner.
 
 `[evaluation]` is required for evaluated mode and unsupported
 in the other modes. `target` and `test_script` must name distinct existing files.
+Metrics are measured from the aggregate `__root__` profile, including all descendant scopes.
 `metrics` defaults to `["graph.paths.expressions.count"]` and must be a nonempty
 array of unique metric names.
 

@@ -3,6 +3,9 @@ command = "uv"
 args = ["run", "--project", ".", "depencity-mcp", "--workspace", "."]
 enabled_tools = ["profile"]
 
+[mcp_servers.depencity.tools.profile]
+approval_mode = "approve"
+
 [mcp_servers.agent-runner]
 command = "uv"
 args = ["run", "--project", ".", "agent-runner-mcp", "--workspace", ".", "--build-root", ".", "--dockerfile", "docker/test/Dockerfile"]

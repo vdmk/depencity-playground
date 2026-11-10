@@ -47,16 +47,13 @@ class Evaluator:
         self.check_target()
         executable = shutil.which('depencity')
         result = subprocess.run(
-            [executable, 'profile', '--format', 'json', '--depth', '1', str(self.target)],
+            [executable, 'profile', '--format', 'json', '--depth', '0', str(self.target)],
             cwd=self.repo, capture_output=True, text=True, check=True,
         )
-        pending = json.loads(result.stdout)['scopes']
-        while pending:
-            scope = pending.pop()
-            if scope['id'] == '__module__':
+        for scope in json.loads(result.stdout)['scopes']:
+            if scope['id'] == '__root__':
                 return {metric: scope['profile'][metric] for metric in self.metrics}
-            pending.extend(scope.get('children', []))
-        raise ValueError(f'no module profile for {self.target}')
+        raise ValueError(f'no root profile for {self.target}')
 
     def snapshot(self):
         return Snapshot(self.check_target().read_bytes(), self.measure())
