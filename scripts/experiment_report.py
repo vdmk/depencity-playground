@@ -7,13 +7,18 @@ Usage: python scripts/experiment_report.py RUN_DIRECTORY [--output report.html]
 import argparse
 import html
 import json
+import tomllib
 from pathlib import Path
 
 
 def read_experiment(run_dir):
-    config = json.loads((run_dir / 'run.json').read_text())
+    manifest = tomllib.loads((run_dir / 'run.toml').read_text())
+    config = {key: value for key, value in manifest.items() if not isinstance(value, dict)}
+    for table in ('agent', 'evaluation'):
+        config.update(manifest.get(table, {}))
+    config['depencity_accept'] = config.get('acceptance')
     rows = []
-    for path in run_dir.glob('*/*.evaluation.json'):
+    for path in [*run_dir.glob('*.evaluation.json'), *run_dir.glob('*/*.evaluation.json')]:
         variant, iteration = path.name.removesuffix('.evaluation.json').rsplit('.', 1)
         report = json.loads(path.read_text())
         rows.append(dict(variant=variant, iteration=int(iteration), **report))
@@ -44,7 +49,7 @@ th,td{text-align:right;padding:11px;border-bottom:1px solid #e5eaf1}th:first-chi
 .table-wrap{overflow:auto}.legend{display:flex;gap:24px;flex-wrap:wrap}.swatch{display:inline-block;
 width:12px;height:12px;border-radius:50%;margin-right:7px}.task{white-space:pre-wrap}
 </style>
-<h1>Plain vs Depencity</h1><div class="muted">__TITLE__</div>
+<h1>Refactoring experiment</h1><div class="muted">__TITLE__</div>
 <p id="description"></p>
 <section><label>Metric <select id="metric"></select></label>
 <label><input type="checkbox" id="log" checked>Logarithmic scale</label>
@@ -74,7 +79,7 @@ const fmt=v=>v==null?'—':v.toLocaleString('en-US',{maximumFractionDigits:3});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 el('description').textContent=`${variants.length} variants · ${rows.length} recorded iterations · ${config.target||''}`;
-el('metadata').textContent=`Model: ${config.model||'unspecified'} · Target: ${config.target||'unspecified'} · Tests: ${config.test_script||'unspecified'} · Depencity acceptance: ${config.depencity_accept||'unspecified'} · Plain: passing tests`;
+el('metadata').textContent=`Experiment: ${config.name||'unspecified'} · Mode: ${config.mode||'unspecified'} · Model: ${config.model||'unspecified'} · Target: ${config.target||'unspecified'} · Tests: ${config.test_script||'unspecified'} · Acceptance: ${config.depencity_accept||'unspecified'}`;
 el('task').textContent=config.task||'';
 metrics.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;el('metric').append(o)});
 el('legend').innerHTML=variants.map((v,i)=>`<span><i class="swatch" style="background:${colors[i%colors.length]}"></i>${esc(v)}</span>`).join('');

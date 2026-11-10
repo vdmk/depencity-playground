@@ -1,0 +1,16 @@
+name = "path-expressions"
+mode = "comparison"
+repo = "../fixtures"
+log_root = "../../out/experiments/path-expressions"
+task_file = "task.md"
+
+[agent]
+model = "gpt-6-luna"
+
+iterations = 3
+
+[evaluation]
+target = "calculator.py"
+test_script = "test_calculator.py"
+metrics = ["graph.paths.expressions.count"]
+acceptance = "depencity"

@@ -1,17 +1,28 @@
-# Benchmarks
+# Experiment catalog
 
-`path-expressions-strict-target-10` adapts the earlier successful `../complexity` search
-prompt: 10 internal attempts per turn, 20 outer turns, Depencity only.
-See [its README](path-expressions-strict-target-10/README.md).
+Each experiment has a checked-in `experiment.toml` and a Markdown task. Run it
+with `uv run agent-runner run experiments/NAME/experiment.toml`.
 
-`path-expressions-internal-20` runs one Depencity-enabled turn with 20 internal measured
-candidate changes, per-candidate keep/revert decisions, and a strict final
-complexity gate. See [its README](path-expressions-internal-20/README.md).
+| Experiment | Mode | Iterations | Search prompt |
+|---|---|---:|---|
+| [path-expressions](path-expressions/experiment.toml) | comparison | 3 per variant | Shared plain-versus-Depencity task |
+| [path-expressions-internal-20](path-expressions-internal-20/experiment.toml) | evaluated | 10 | Continued search without a fixed internal attempt count |
+| [path-expressions-strict-target-10](path-expressions-strict-target-10/experiment.toml) | evaluated | 20 | Requests ten internal candidates per turn |
 
-Each benchmark family lives in its own directory and compares the same prompt
-with MCP enabled and without MCP. The `single-pass` family runs one paired pass
-per case. The `multi-pass-no-target` family runs repeated sequential turns per
-agent and preserves each intermediate diff and profile. It defaults to three
-turns and accepts `--turns N`.
-The `multi-pass-targeted` family adds a shared concise summary of the profile
-targets from `target.json` to the task prompt.
+All use the original [calculator fixture](fixtures/calculator.py), Docker tests,
+and `graph.paths.expressions.count`. Depencity candidates must pass tests and
+strictly improve the metric; the plain comparison variant accepts passing tests.
+The internal attempt count remains a prompt instruction, not a harness-enforced
+budget.
+
+Run output goes to `out/experiments/NAME/RUN_ID/`, including a resolved `run.toml`.
+Use `--continue` with the same manifest to resume; edit `agent.iterations` to
+increase the total. See the [runner documentation](../agent_runner/README.md)
+for the complete schema and resume rules.
+
+Historical argument-based runs and their original reports are preserved under
+`out/archive/experiments/`. New reports read resolved TOML records:
+
+```sh
+python scripts/experiment_report.py out/experiments/NAME/RUN_ID
+```

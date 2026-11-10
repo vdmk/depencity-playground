@@ -1,0 +1,16 @@
+name = "path-expressions-strict-target-10"
+mode = "evaluated"
+repo = "../fixtures"
+log_root = "../../out/experiments/path-expressions-strict-target-10"
+task_file = "task.md"
+
+[agent]
+model = "gpt-6-luna"
+
+iterations = 20
+
+[evaluation]
+target = "calculator.py"
+test_script = "test_calculator.py"
+metrics = ["graph.paths.expressions.count"]
+acceptance = "depencity"

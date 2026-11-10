@@ -1,30 +1,33 @@
-# Expression-path calculator experiment
+# Path expressions
+
+Run the checked-in [manifest](experiment.toml):
 
 ```sh
-uv run agent-runner run-experiment \
-  --repo experiments/fixtures --target calculator.py --test-script test_calculator.py \
-  --iterations 3 --metric graph.paths.expressions.count \
-  --depencity-accept depencity \
-  --task "$(cat experiments/path-expressions/task.md)" \
-  --log-root "$PWD/out/experiments/path-expressions"
+uv run agent-runner run experiments/path-expressions/experiment.toml
 ```
 
-The runner copies the target and test file into its run directory. Originals stay
-untouched; logs, diffs, measurements, and accepted snapshots are saved alongside
-each variant's files in `plain/` and `depencity/`. Both variants run in parallel.
-Both workers receive the same Markdown prompt; only tool availability differs.
-The evaluator restores the original tests before Docker validation.
-Repeat the command with `--continue` to resume the latest run; `--iterations`
-sets the total per variant, including completed iterations.
-`--depencity-accept all|depencity` defaults to accepting passing tests. Choose
-`depencity` to require metric improvement for Depencity only; plain is unchanged.
-Rejected candidates are logged and rolled back. The setting persists across `--continue`.
+The manifest supplies the model, prompt file, iteration budget, metric, and
+acceptance policy. Paths are relative to the manifest directory; `target` and
+`test_script` are relative to `repo`.
 
-Run `uv sync` after updating `../depencity`. Workers use the runner's explicit MCP
-configuration; evaluation uses the Depencity CLI and Docker tests.
+Plain and Depencity variants run in parallel with the same prompt. Only Depencity receives profiling tools and requires metric improvement; plain retains changes that pass tests.
+Original fixtures stay untouched. Each worker uses a persistent `workspace/`;
+logs, candidate snapshots, diffs, evaluations, and resolved `run.toml` stay outside
+it. Original tests are restored before Docker validation.
 
-Each evaluated worker uses one persistent `workspace/` containing only the target
-and original test file. Logs, summaries, diffs, and evaluations stay outside that
-project folder. Original tests are restored before every turn. Rejected target
-changes are rolled back; accepted changes remain for the next turn. Workers can read and write only inside their project folder, apart from
-minimal system runtime paths needed by command execution. Logs are denied.
+To resume the latest run, increase `[agent].iterations` in the manifest if
+needed, then run:
+
+```sh
+uv run agent-runner run experiments/path-expressions/experiment.toml --continue
+```
+
+Generate a self-contained HTML report:
+
+```sh
+python scripts/experiment_report.py out/experiments/path-expressions/RUN_ID
+```
+
+Historical runs from the CLI-argument interface are archived under
+`out/archive/experiments/path-expressions/`. Their original logs and reports are preserved;
+they cannot be resumed with the manifest interface.

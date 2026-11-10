@@ -1,19 +1,33 @@
-# Expression-path internal search
+# Path expressions internal 20
 
-The current task asks for continued useful improvements without a fixed internal
-attempt count or bookkeeping. Run 10 outer iterations with Depencity only:
+Run the checked-in [manifest](experiment.toml):
 
 ```sh
-uv run agent-runner run --depencity-eval \
-  --repo experiments/fixtures --target calculator.py --test-script test_calculator.py \
-  --iterations 10 --metric graph.paths.expressions.count \
-  --depencity-accept depencity \
-  --task "$(cat experiments/path-expressions-internal-20/task.md)" \
-  --log-root "$PWD/out/experiments/path-expressions-internal-20"
+uv run agent-runner run experiments/path-expressions-internal-20/experiment.toml
 ```
 
-Each run starts from the original fixtures. One persistent `workspace/` contains
-calculator.py and the original tests; logs and evaluation artifacts stay outside
-it. Tests are restored each turn. The evaluator keeps candidates only when tests
-pass and expression-path count decreases; rejected edits are rolled back.
-Historical paired runs and their original 20-attempt prompts remain in the logs.
+The manifest supplies the model, prompt file, iteration budget, metric, and
+acceptance policy. Paths are relative to the manifest directory; `target` and
+`test_script` are relative to `repo`.
+
+A Depencity worker runs cumulative iterations. A candidate is retained only when tests pass and the expression-path count decreases.
+Original fixtures stay untouched. Each worker uses a persistent `workspace/`;
+logs, candidate snapshots, diffs, evaluations, and resolved `run.toml` stay outside
+it. Original tests are restored before Docker validation.
+
+To resume the latest run, increase `[agent].iterations` in the manifest if
+needed, then run:
+
+```sh
+uv run agent-runner run experiments/path-expressions-internal-20/experiment.toml --continue
+```
+
+Generate a self-contained HTML report:
+
+```sh
+python scripts/experiment_report.py out/experiments/path-expressions-internal-20/RUN_ID
+```
+
+Historical runs from the CLI-argument interface are archived under
+`out/archive/experiments/path-expressions-internal-20/`. Their original logs and reports are preserved;
+they cannot be resumed with the manifest interface.

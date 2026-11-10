@@ -1,42 +1,47 @@
 # Agentic experiment playground
 
-Extracted from `../complexity`. The `agent_runner/` subproject provides isolated
-Codex workers, Docker execution, and review tools. `experiments/` contains the
-calculator refactoring comparisons. Depencity comes from `../depencity` as an
-editable dependency; its source stays in that repository.
+`agent_runner/` runs isolated Codex workers, Docker validation, and metric-guided
+refactoring searches. `experiments/` defines reproducible calculator experiments
+with TOML manifests. Depencity comes from `../depencity` as an editable dependency.
 
-Install with `uv sync`. Running experiments requires the `codex` CLI with a
-configured account; MCP Docker tests also require Docker.
-
-Repeat the calculator experiment with three sequential turns per variant:
+Install with `uv sync`. Running experiments requires a configured `codex` CLI
+and Docker. Start a plain-versus-Depencity comparison:
 
 ```sh
-uv run experiments/multi-pass-no-target/run.py --turns 3
-uv run experiments/multi-pass-targeted/run.py --turns 3
+uv run agent-runner run experiments/path-expressions/experiment.toml
 ```
 
-Each compares agents with Depencity MCP tools against plain agents. Results,
-profiles, diffs, tests, and transcripts go to `out/experiments/`. The targeted
-variant can resume an interrupted run with `--resume`.
-
-Other preserved comparisons:
+Or run a Depencity-only search:
 
 ```sh
-uv run experiments/single-pass/run.py
-uv run agent-runner run --help
+uv run agent-runner run experiments/path-expressions-strict-target-10/experiment.toml
 ```
 
-Runner documentation: [agent_runner/README.md](agent_runner/README.md).
-Profile preferences: [agent-runner-files/target.json](agent-runner-files/target.json).
+Settings live in the manifest. Relative paths resolve from its directory.
+Every execution saves a resolved `run.toml`, transcripts, diffs, test output,
+and evaluations under `out/experiments/`. Resume the latest run with the same
+manifest and `--continue`. Historical CLI-argument runs live under
+`out/archive/experiments/` and remain unchanged.
 
-Validate the runner through `agent-runner-mcp`'s `docker` tool, with build
-root set to this directory, Dockerfile `docker/test/Dockerfile`, and command:
-`pytest -q agent_runner/tests -p no:cacheprovider --import-mode=importlib -n 2`.
-Test containers run with networking disabled.
-
-The runner supplies `../depencity` as a named Docker build context and installs
-it in the Alpine test image. For a manual build, run:
+Generate a self-contained HTML report:
 
 ```sh
-docker build --build-context depencity=/Users/xxx/workspace/depencity -f docker/test/Dockerfile .
+python scripts/experiment_report.py out/experiments/EXPERIMENT/RUN_ID
+```
+
+See the [manifest and runner documentation](agent_runner/README.md) and
+[experiment catalog](experiments/README.md).
+
+Validate through `agent-runner-mcp`'s `docker` tool, using this directory as the
+build root, `docker/test/Dockerfile`, and:
+
+```sh
+pytest -q agent_runner/tests -p no:cacheprovider --import-mode=importlib -n 2
+```
+
+Test containers run with networking disabled. The runner supplies `../depencity`
+as a named Docker build context. For a manual image build:
+
+```sh
+docker build --build-context depencity=../depencity -f docker/test/Dockerfile .
 ```
