@@ -45,7 +45,8 @@ and out-of-range budgets are rejected before creating a run.
 
 Top-level `variants` selects the evaluated agents: `["depencity"]` (default),
 `["plain"]`, or `["depencity", "plain"]`. Both variants run in parallel with
-the same task and iteration budget, in separate `depencity/` and `plain/` directories.
+the same task and iteration budget. Each selected variant always has its own
+`depencity/` or `plain/` directory, including when only one variant is selected.
 Only `depencity` receives Depencity tools; `plain` accepts every candidate that
 passes tests. Variants cannot change when resuming. This setting requires
 `mode = "evaluated"`.

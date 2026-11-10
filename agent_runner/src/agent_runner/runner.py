@@ -59,11 +59,13 @@ def run(manifest: Path, resume: bool) -> None:
             settings['depencity_accept'], variants=settings['variants'],
         )
     else:
-        codex = Codex(model, log_root, with_depencity=settings.get('variants', ['depencity']) != ['plain'])
+        directory = log_root / settings['variants'][0] if mode == 'evaluated' else log_root
+        directory.mkdir(parents=True, exist_ok=True)
+        codex = Codex(model, directory, with_depencity=settings.get('variants', ['depencity']) != ['plain'])
         if mode == 'evaluated':
             runner = EvaluatedRunner(
                 codex, repo, task, iterations, Path(settings['target']), tuple(settings['metrics']),
-                Path(settings['test_script']), workspace=log_root / 'workspace', resume=resume,
+                Path(settings['test_script']), workspace=directory / 'workspace', resume=resume,
                 depencity_accept=settings['depencity_accept'] if settings['variants'] == ['depencity'] else 'all',
             )
         elif mode == 'workspaces':

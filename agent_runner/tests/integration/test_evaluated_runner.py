@@ -69,15 +69,15 @@ def test_evaluated_iterations_progress_regardless_of_metrics(tmp_path, monkeypat
     assert result.exit_code == 0, result.output
     assert starts == [ORIGINAL, IMPROVED, WORSE]
     assert (repo / 'target.py').read_text() == ORIGINAL
-    workspace, = logs.glob('*/workspace')
+    workspace, = logs.glob('*/depencity/workspace')
     assert (workspace / 'target.py').read_text() == IMPROVED
     reports = [json.loads(path.read_text()) for path in sorted(logs.rglob('*.evaluation.json'))]
     assert [report['status'] for report in reports] == ['accepted', 'accepted', 'accepted']
     assert [(report['before']['graph.paths.expressions.count'], report['after']['graph.paths.expressions.count']) for report in reports] == [(2, 1), (1, 3), (3, 1)]
     run_dir, = logs.iterdir()
-    assert (run_dir / 'agent-01.2.diff').read_text()
-    assert (run_dir / 'agent-01.2.candidate.py').read_text() == WORSE
-    assert all('1 passed' in path.read_text() for path in run_dir.glob('*.tests.txt'))
+    assert (run_dir / 'depencity/agent-01.2.diff').read_text()
+    assert (run_dir / 'depencity/agent-01.2.candidate.py').read_text() == WORSE
+    assert all('1 passed' in path.read_text() for path in (run_dir / 'depencity').glob('*.tests.txt'))
     assert not (repo / '.git').exists()
 
 
@@ -98,7 +98,7 @@ def test_improvement_filter_rolls_back_and_continues(tmp_path, monkeypatch):
     reports = [json.loads(p.read_text()) for p in sorted(logs.rglob('*.evaluation.json'))]
     assert [r['status'] for r in reports] == ['accepted', 'rejected', 'rejected']
     assert [r['after']['graph.paths.expressions.count'] for r in reports] == [1, 3, 1]
-    workspace, = logs.glob('*/workspace')
+    workspace, = logs.glob('*/depencity/workspace')
     assert (workspace / 'target.py').read_text() == IMPROVED
 
 
@@ -124,7 +124,7 @@ def test_improvement_filter_requires_no_metric_regression(tmp_path, monkeypatch,
     report = json.loads(report_path.read_text())
     assert report['accepted'] is accepted
     assert report['after'] == dict(zip(metrics, after))
-    workspace, = logs.glob('*/workspace')
+    workspace, = logs.glob('*/depencity/workspace')
     assert (workspace / 'target.py').read_text() == (IMPROVED if accepted else ORIGINAL)
 
 
@@ -196,7 +196,7 @@ def test_evaluated_failures_restore_target_and_stop(tmp_path, monkeypatch, failu
     assert result.exit_code == 1, result.output
     assert calls == ['agent-01.1']
     assert (repo / 'target.py').read_text() == ORIGINAL
-    workspace, = logs.glob('*/workspace')
+    workspace, = logs.glob('*/depencity/workspace')
     assert (workspace / 'target.py').read_text() == ORIGINAL
     if failure == 'docker':
         assert 'Docker daemon is unavailable' in str(result.exception)
@@ -251,10 +251,10 @@ def test_single_run_continues_from_saved_checkpoint(tmp_path, monkeypatch):
     result = invoke_manifest({**arguments, 'iterations': 1, 'task': 'saved task', 'depencity_accept': 'depencity'})
     assert result.exit_code == 0, result.output
     root, = logs.iterdir()
-    saved = (root / 'agent-01.1.evaluation.json').read_bytes()
+    saved = (root / 'depencity/agent-01.1.evaluation.json').read_bytes()
     # A subsequent interrupted attempt must restart from its checkpoint.
-    (root / 'agent-01.2.before.py').write_text(IMPROVED)
-    (root / 'workspace/target.py').write_text('unfinished source!\n')
+    (root / 'depencity/agent-01.2.before.py').write_text(IMPROVED)
+    (root / 'depencity/workspace/target.py').write_text('unfinished source!\n')
 
     def continued(self, name, work_dir, task):
         calls.append(name)
@@ -267,8 +267,8 @@ def test_single_run_continues_from_saved_checkpoint(tmp_path, monkeypatch):
     result = invoke_manifest({'mode': 'evaluated', 'log_root': str(logs), 'resume': True, 'iterations': 3})
     assert result.exit_code == 0, result.output
     assert calls == ['agent-01.2', 'agent-01.3']
-    assert (root / 'agent-01.1.evaluation.json').read_bytes() == saved
-    assert (root / 'workspace/target.py').read_text() == IMPROVED
+    assert (root / 'depencity/agent-01.1.evaluation.json').read_bytes() == saved
+    assert (root / 'depencity/workspace/target.py').read_text() == IMPROVED
     calls.clear()
     result = invoke_manifest({'mode': 'evaluated', 'log_root': str(logs), 'resume': True})
     assert result.exit_code == 0, result.output
@@ -348,7 +348,7 @@ def test_repeatable_metrics_record_changes_without_filtering(tmp_path, monkeypat
     assert report['accepted'] is True
     assert report['after'] == dict(zip(metrics, after))
     assert (repo / 'target.py').read_text() == ORIGINAL
-    workspace, = logs.glob('*/workspace')
+    workspace, = logs.glob('*/depencity/workspace')
     assert (workspace / 'target.py').read_text() == IMPROVED
 
 
@@ -510,7 +510,7 @@ def test_evaluator_uses_original_tests(tmp_path, monkeypatch, candidate, tamper,
     monkeypatch.setattr(Codex, 'run', run_agent)
     result = invoke_manifest(arguments)
     assert result.exit_code == 0, result.output
-    workspace, = logs.glob('*/workspace')
+    workspace, = logs.glob('*/depencity/workspace')
     assert (workspace / 'test_target.py').read_bytes() == original_tests
     report_path, = logs.rglob('*.evaluation.json')
     report = json.loads(report_path.read_text())
@@ -573,6 +573,6 @@ def test_plain_only_variant_disables_tools_and_metric_gate(tmp_path, monkeypatch
     run_dir = next(logs.iterdir())
     record = tomllib.loads((run_dir / 'run.toml').read_text())
     assert record['variants'] == ['plain']
-    report = json.loads((run_dir / 'agent-01.1.evaluation.json').read_text())
+    report = json.loads((run_dir / 'plain/agent-01.1.evaluation.json').read_text())
     assert report['accepted'] is True
-    assert (run_dir / 'workspace/target.py').read_text() == WORSE
+    assert (run_dir / 'plain/workspace/target.py').read_text() == WORSE
