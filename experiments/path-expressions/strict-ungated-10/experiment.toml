@@ -1,0 +1,17 @@
+name = "path-expressions-strict-ungated-10"
+mode = "evaluated"
+variants = ["depencity", "plain"]
+repo = "../../fixtures"
+log_root = "../../../out/experiments/path-expressions/strict-ungated-10"
+task_file = "task.md"
+
+[agent]
+model = "gpt-6-luna"
+
+iterations = 20
+
+[evaluation]
+target = "calculator.py"
+test_script = "test_calculator.py"
+metrics = ["graph.paths.expressions.count"]
+reject_if_not_improved = false

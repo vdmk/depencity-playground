@@ -16,7 +16,6 @@ def read_experiment(run_dir):
     config = {key: value for key, value in manifest.items() if not isinstance(value, dict)}
     for table in ('agent', 'evaluation'):
         config.update(manifest.get(table, {}))
-    config['depencity_accept'] = config.get('acceptance')
     rows = []
     for path in [*run_dir.glob('*.evaluation.json'), *run_dir.glob('*/*.evaluation.json')]:
         variant, iteration = path.name.removesuffix('.evaluation.json').rsplit('.', 1)
@@ -79,7 +78,7 @@ const fmt=v=>v==null?'—':v.toLocaleString('en-US',{maximumFractionDigits:3});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 el('description').textContent=`${variants.length} variants · ${rows.length} recorded iterations · ${config.target||''}`;
-el('metadata').textContent=`Experiment: ${config.name||'unspecified'} · Mode: ${config.mode||'unspecified'} · Variants: ${(config.variants||[]).join(', ')} · Model: ${config.model||'unspecified'} · Target: ${config.target||'unspecified'} · Tests: ${config.test_script||'unspecified'} · Acceptance: ${config.depencity_accept||'unspecified'}`;
+el('metadata').textContent=`Experiment: ${config.name||'unspecified'} · Mode: ${config.mode||'unspecified'} · Variants: ${(config.variants||[]).join(', ')} · Model: ${config.model||'unspecified'} · Target: ${config.target||'unspecified'} · Tests: ${config.test_script||'unspecified'} · Reject if not improved: ${config.reject_if_not_improved??false}`;
 el('task').textContent=config.task||'';
 metrics.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;el('metric').append(o)});
 el('legend').innerHTML=variants.map((v,i)=>`<span><i class="swatch" style="background:${colors[i%colors.length]}"></i>${esc(v)}</span>`).join('');

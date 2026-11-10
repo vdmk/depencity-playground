@@ -11,9 +11,8 @@ from agent_runner.runner import main
 
 
 TABLES = {
-    'agent': {'model': 'model', 'iterations': 'iterations', 'workers': 'workers'},
-    'evaluation': {'target': 'target', 'test_script': 'test_script', 'metrics': 'metrics',
-                   'depencity_accept': 'acceptance'},
+    'agent': ('model', 'iterations', 'workers'),
+    'evaluation': ('target', 'test_script', 'metrics', 'reject_if_not_improved'),
 }
 
 
@@ -29,17 +28,17 @@ def invoke_manifest(settings):
         if manifests:
             data = tomllib.loads(manifests[-1].read_text())
             saved = {key: value for key, value in data.items() if key not in TABLES}
-            for table, mapping in TABLES.items():
-                saved.update({key: data[table][field] for key, field in mapping.items()
-                              if field in data.get(table, {})})
+            for table, fields in TABLES.items():
+                saved.update({key: data[table][key] for key in fields
+                              if key in data.get(table, {})})
     settings = {'name': 'integration-test', **saved, **settings}
     settings.setdefault('repo', str(repo))
     settings['repo'] = str(Path(settings['repo']).resolve())
-    fields = {key for mapping in TABLES.values() for key in mapping}
+    fields = {key for table_fields in TABLES.values() for key in table_fields}
     lines = [f'{key} = {json.dumps(value)}' for key, value in settings.items() if key not in fields]
-    for table, mapping in TABLES.items():
-        values = [f'{field} = {json.dumps(settings[key])}'
-                  for key, field in mapping.items() if key in settings]
+    for table, fields in TABLES.items():
+        values = [f'{key} = {json.dumps(settings[key])}'
+                  for key in fields if key in settings]
         if values:
             lines.extend(['', f'[{table}]', *values])
     with tempfile.TemporaryDirectory() as directory:

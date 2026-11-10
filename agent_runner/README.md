@@ -29,7 +29,7 @@ iterations = 3
 target = "calculator.py"
 test_script = "test_calculator.py"
 metrics = ["graph.paths.expressions.count"]
-acceptance = "depencity"
+reject_if_not_improved = "depencity"
 ```
 
 `repo`, `log_root`, and `task_file` resolve relative to the manifest's directory,
@@ -47,8 +47,8 @@ Top-level `variants` selects the evaluated agents: `["depencity"]` (default),
 `["plain"]`, or `["depencity", "plain"]`. Both variants run in parallel with
 the same task and iteration budget. Each selected variant always has its own
 `depencity/` or `plain/` directory, including when only one variant is selected.
-Only `depencity` receives Depencity tools; `plain` accepts every candidate that
-passes tests. Variants cannot change when resuming. This setting requires
+Only `depencity` receives Depencity tools. Both variants must pass tests;
+`evaluation.reject_if_not_improved` controls their metric gates. Variants cannot change when resuming. This setting requires
 `mode = "evaluated"`.
 
 ## Modes
@@ -74,10 +74,14 @@ Metrics are measured from the aggregate `__root__` profile, including all descen
 `metrics` defaults to `["graph.paths.expressions.count"]` and must be a nonempty
 array of unique metric names.
 
-`acceptance = "all"` (default) retains candidates that pass original tests.
-`acceptance = "depencity"` also requires no selected metric increases and at least
-one decrease. When both variants run, this metric gate applies only to Depencity;
-plain always retains candidates that pass tests. Rejected candidates are logged
+`reject_if_not_improved` selects which variants require metric improvement:
+
+- `false` (default): neither variant.
+- `"depencity"`: only the Depencity variant.
+- `"all"`: every selected variant, including plain.
+
+Every candidate must pass the original tests. When the metric gate applies,
+no selected metric may increase and at least one must decrease. Rejected candidates are logged
 and rolled back. Test failures continue the search; agent and infrastructure
 failures stop the affected worker.
 
@@ -91,7 +95,7 @@ These are execution records, not a sanitized publication bundle.
 
 Use the same experiment manifest with `--continue` to resume the latest run under
 its `log_root`. Increase `agent.iterations` to extend the total; it cannot be
-reduced. Only iterations and evaluation acceptance may change when continuing.
+reduced. Only iterations and `evaluation.reject_if_not_improved` may change when continuing.
 Other effective settings, including prompt contents, must match. Alternatively,
 pass a saved `run.toml` itself to reuse its resolved settings.
 

@@ -12,11 +12,10 @@ DEFAULT_TASK = (
     'guidance and run relevant tests.'
 )
 
-# TOML names map to the runner constructor settings.
+# Fields belonging to each TOML table.
 TABLES = {
-    'agent': {'model': 'model', 'iterations': 'iterations', 'workers': 'workers'},
-    'evaluation': {'target': 'target', 'test_script': 'test_script', 'metrics': 'metrics',
-                   'acceptance': 'depencity_accept'},
+    'agent': ('model', 'iterations', 'workers'),
+    'evaluation': ('target', 'test_script', 'metrics', 'reject_if_not_improved'),
 }
 
 
@@ -51,25 +50,25 @@ def load_manifest(path: Path) -> dict:
     allowed = {'agent'}
     if mode == 'evaluated':
         allowed.add('evaluation')
-        settings.update(metrics=['graph.paths.expressions.count'], depencity_accept='all')
+        settings.update(metrics=['graph.paths.expressions.count'], reject_if_not_improved=False)
     if mode == 'workspaces':
         settings.update(workers=5, branch_mode='fresh')
     if 'branch_mode' in data:
         if mode != 'workspaces':
             raise click.UsageError('branch_mode requires workspaces mode')
         settings['branch_mode'] = data['branch_mode']
-    for table, mapping in TABLES.items():
+    for table, fields in TABLES.items():
         if table not in data:
             continue
         if table not in allowed or not isinstance(data[table], dict):
             raise click.UsageError(f'{table} is not supported in {mode} mode')
-        unknown = data[table].keys() - mapping.keys()
+        unknown = data[table].keys() - set(fields)
         if unknown:
             raise click.UsageError(f'unknown {table} keys: {", ".join(sorted(unknown))}')
         for key, value in data[table].items():
             if key == 'workers' and mode != 'workspaces':
                 raise click.UsageError(f'agent.{key} requires workspaces mode')
-            settings[mapping[key]] = value
+            settings[key] = value
     for key, limit in (('iterations', 1000), ('workers', 100)):
         if key in settings and (type(settings[key]) is not int or not 1 <= settings[key] <= limit):
             raise click.UsageError(f'agent.{key} must be an integer between 1 and {limit}')
@@ -108,8 +107,9 @@ def load_manifest(path: Path) -> dict:
                 or any(not isinstance(metric, str) or not metric.strip() for metric in metrics)
                 or len(set(metrics)) != len(metrics)):
             raise click.UsageError('evaluation.metrics must be a nonempty array of unique metric names')
-        if settings['depencity_accept'] not in ('all', 'depencity'):
-            raise click.UsageError('evaluation.acceptance must be all or depencity')
+        if (settings['reject_if_not_improved'] is not False
+                and settings['reject_if_not_improved'] not in ('all', 'depencity')):
+            raise click.UsageError('evaluation.reject_if_not_improved must be false, depencity, or all')
     return settings
 
 
@@ -120,9 +120,9 @@ def save_manifest(path: Path, settings: dict) -> None:
     for key in ('branch_mode', 'variants'):
         if key in settings:
             lines.append(f'{key} = {json.dumps(settings[key])}')
-    for table, mapping in TABLES.items():
-        values = [f'{key} = {json.dumps(settings[setting], ensure_ascii=False)}'
-                  for key, setting in mapping.items() if setting in settings]
+    for table, fields in TABLES.items():
+        values = [f'{key} = {json.dumps(settings[key], ensure_ascii=False)}'
+                  for key in fields if key in settings]
         if values:
             lines.extend(['', f'[{table}]', *values])
     path.write_text('\n'.join(lines) + '\n')

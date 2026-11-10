@@ -13,7 +13,7 @@ VARIANTS = ('plain', 'depencity')
 
 class ComparisonRunner(Runner):
     def __init__(self, repo, log_root, task, model, iterations, target, metrics,
-                 test_script, resume, depencity_accept, variants=VARIANTS):
+                 test_script, resume, reject_if_not_improved, variants=VARIANTS):
         super().__init__(None, repo, len(variants), task, iterations)
         self.variant_names = tuple(variants)
         self.variants = {}
@@ -25,7 +25,7 @@ class ComparisonRunner(Runner):
                 codex, repo, task, iterations, target, metrics, test_script,
                 workspace=directory / 'workspace',
                 resume=resume and (directory / 'workspace' / target).exists(),
-                depencity_accept=depencity_accept if variant == 'depencity' else 'all',
+                reject_if_not_improved=reject_if_not_improved in ('all', variant),
             )
 
     def run_worker(self, name):

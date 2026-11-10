@@ -14,4 +14,4 @@ iterations = 3
 target = "calculator.py"
 test_script = "test_calculator.py"
 metrics = ["graph.paths.expressions.count"]
-acceptance = "depencity"
+reject_if_not_improved = "depencity"

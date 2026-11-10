@@ -35,13 +35,13 @@ class Snapshot:
 class Evaluator:
     """Evaluate one Python file using Depencity and a pytest script."""
 
-    def __init__(self, repo, target, metrics, test_script, depencity_accept):
+    def __init__(self, repo, target, metrics, test_script, reject_if_not_improved):
         self.repo = repo
         self.target = checked_workspace_path(repo, target)
         self.metrics = metrics
         self.test_script = test_script
         self.test_source = checked_workspace_path(repo, test_script).read_bytes()
-        self.depencity_accept = depencity_accept
+        self.reject_if_not_improved = reject_if_not_improved
 
     def measure(self):
         self.check_target()
@@ -96,7 +96,7 @@ class Evaluator:
                 status = 'rejected'
                 if test_return_code == 0:
                     after_values = self.measure()
-                    accepted = self.depencity_accept == 'all' or (
+                    accepted = not self.reject_if_not_improved or (
                         all(after_values[key] <= before.values[key] for key in self.metrics)
                         and any(after_values[key] < before.values[key] for key in self.metrics)
                     )
@@ -106,7 +106,7 @@ class Evaluator:
                 'before': before.values, 'after': after_values, 'accepted': accepted,
                 'status': status, 'agent_return_code': agent_return_code,
                 'test_return_code': test_return_code,
-                'depencity_accept': self.depencity_accept,
+                'reject_if_not_improved': self.reject_if_not_improved,
             }
             Path(f'{log_path}.evaluation.json').write_text(json.dumps(report, indent=2) + '\n')
             return report

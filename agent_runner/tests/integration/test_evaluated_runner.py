@@ -92,7 +92,7 @@ def test_improvement_filter_rolls_back_and_continues(tmp_path, monkeypatch):
         return CodexResult(0, 'candidate')
 
     monkeypatch.setattr(Codex, 'run', run_agent)
-    result = invoke_manifest({**arguments, 'depencity_accept': 'depencity'})
+    result = invoke_manifest({**arguments, 'reject_if_not_improved': 'depencity'})
     assert result.exit_code == 0, result.output
     assert starts == [ORIGINAL, IMPROVED, IMPROVED]
     reports = [json.loads(p.read_text()) for p in sorted(logs.rglob('*.evaluation.json'))]
@@ -118,7 +118,7 @@ def test_improvement_filter_requires_no_metric_regression(tmp_path, monkeypatch,
         return CodexResult(0, 'candidate')
 
     monkeypatch.setattr(Codex, 'run', run_agent)
-    result = invoke_manifest({**arguments, 'iterations': 1, 'depencity_accept': 'depencity', 'metrics': [metrics[0], metrics[1]]})
+    result = invoke_manifest({**arguments, 'iterations': 1, 'reject_if_not_improved': 'depencity', 'metrics': [metrics[0], metrics[1]]})
     assert result.exit_code == 0, result.output
     report_path, = logs.rglob('*.evaluation.json')
     report = json.loads(report_path.read_text())
@@ -153,8 +153,8 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Codex, 'run', worse)
     for total, flags in [
-        (2, {'depencity_accept': 'depencity'}), (3, {}),
-        (4, {'depencity_accept': 'all'}),
+        (2, {'reject_if_not_improved': 'depencity'}), (3, {}),
+        (4, {'reject_if_not_improved': False}),
     ]:
         result = invoke_manifest({'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True, 'iterations': total, **flags})
         assert result.exit_code == 0, result.output
@@ -162,15 +162,15 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
             filtered = variant == 'depencity' and total != 4
             report = json.loads((root / variant / f'{variant}.{total}.evaluation.json').read_text())
             assert report['status'] == ('rejected' if filtered else 'accepted')
-            assert report['depencity_accept'] == ('depencity' if filtered else 'all')
+            assert report['reject_if_not_improved'] is filtered
             assert report['after']['graph.paths.expressions.count'] == 3
             assert (root / variant / 'workspace/target.py').read_text() == (IMPROVED if filtered else WORSE)
-        assert tomllib.loads(manifest.read_text())['evaluation']['acceptance'] == ('all' if total == 4 else 'depencity')
+        assert tomllib.loads(manifest.read_text())['evaluation']['reject_if_not_improved'] == (False if total == 4 else 'depencity')
     assert sorted(calls) == ['depencity.2', 'depencity.3', 'depencity.4', 'plain.2', 'plain.3', 'plain.4']
 
 
 def test_improvement_filter_requires_evaluation(tmp_path):
-    result = invoke_manifest({'mode': 'in-place', 'repo': str(tmp_path), 'log_root': str(tmp_path / 'logs'), 'depencity_accept': 'depencity'})
+    result = invoke_manifest({'mode': 'in-place', 'repo': str(tmp_path), 'log_root': str(tmp_path / 'logs'), 'reject_if_not_improved': 'depencity'})
     assert result.exit_code == 2
     assert 'evaluation is not supported in in-place mode' in result.output
 
@@ -248,7 +248,7 @@ def test_single_run_continues_from_saved_checkpoint(tmp_path, monkeypatch):
         return CodexResult(0, 'candidate')
 
     monkeypatch.setattr(Codex, 'run', initial)
-    result = invoke_manifest({**arguments, 'iterations': 1, 'task': 'saved task', 'depencity_accept': 'depencity'})
+    result = invoke_manifest({**arguments, 'iterations': 1, 'task': 'saved task', 'reject_if_not_improved': 'depencity'})
     assert result.exit_code == 0, result.output
     root, = logs.iterdir()
     saved = (root / 'depencity/agent-01.1.evaluation.json').read_bytes()
@@ -568,7 +568,7 @@ def test_plain_only_variant_disables_tools_and_metric_gate(tmp_path, monkeypatch
 
     monkeypatch.setattr(Codex, 'run', run_agent)
     result = invoke_manifest({**arguments, 'iterations': 1, 'variants': ['plain'],
-                              'depencity_accept': 'depencity'})
+                              'reject_if_not_improved': 'depencity'})
     assert result.exit_code == 0, result.output
     run_dir = next(logs.iterdir())
     record = tomllib.loads((run_dir / 'run.toml').read_text())
@@ -596,3 +596,28 @@ def test_evaluation_measures_root_aggregate(tmp_path, monkeypatch):
     # This fixture's module aggregate is 16,333; the full root includes more paths.
     assert report['before'] == {'graph.paths.expressions.count': 20926}
     assert report['after'] == report['before']
+
+
+@pytest.mark.parametrize('policy', [False, 'depencity', 'all'])
+@pytest.mark.parametrize('candidate', [ORIGINAL, WORSE])
+def test_metric_rejection_selects_variants(tmp_path, monkeypatch, policy, candidate):
+    repo, logs, arguments = prepare(tmp_path)
+
+    def run_agent(self, name, work_dir, task):
+        (work_dir / 'target.py').write_text(candidate)
+        return CodexResult(0, 'passing candidate without metric improvement')
+
+    monkeypatch.setattr(Codex, 'run', run_agent)
+    result = invoke_manifest({**arguments, 'iterations': 1,
+                              'variants': ['depencity', 'plain'],
+                              'reject_if_not_improved': policy})
+    assert result.exit_code == 0, result.output
+    root, = logs.iterdir()
+    assert tomllib.loads((root / 'run.toml').read_text())['evaluation']['reject_if_not_improved'] == policy
+    for variant in ('depencity', 'plain'):
+        filtered = policy == 'all' or policy == variant
+        report = json.loads((root / variant / f'{variant}.1.evaluation.json').read_text())
+        assert report['test_return_code'] == 0
+        assert report['accepted'] is (not filtered)
+        assert report['reject_if_not_improved'] is filtered
+        assert (root / variant / 'workspace/target.py').read_text() == (ORIGINAL if filtered else candidate)

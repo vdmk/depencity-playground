@@ -71,6 +71,10 @@ def test_manifest_runs_from_another_directory_and_snapshots_prompt(tmp_path, mon
 
 @pytest.mark.parametrize('body, message', [
     ('log_rooot = "runs"', 'unknown manifest keys'),
+    *[(f'log_root = "runs"\nmode = "evaluated"\n[evaluation]\n'
+       f'target = "target.py"\ntest_script = "test_target.py"\nreject_if_not_improved = {value}',
+       'evaluation.reject_if_not_improved must be false, depencity, or all')
+      for value in ('true', '0', '"none"', '[]')],
     ('log_root = "runs"\n[agent]\niteration = 2', 'unknown agent keys'),
     ('log_root = "runs"\n[agent]\niterations = true', 'agent.iterations must be an integer'),
     ('log_root = "runs"\n[agent]\nmodel = 3', 'agent.model must be a nonempty string'),
@@ -117,7 +121,7 @@ def test_report_reads_toml_and_evaluation_layouts(tmp_path, paired):
         '[agent]\nmodel = "test-model"\n'
         'iterations = 1\n'
         '[evaluation]\ntarget = "target.py"\ntest_script = "test_target.py"\n'
-        'metrics = ["graph.paths.expressions.count"]\nacceptance = "depencity"\n'
+        'metrics = ["graph.paths.expressions.count"]\nreject_if_not_improved = "depencity"\n'
     )
     for variant in (('plain', 'depencity') if paired else ('agent-01',)):
         directory = run_dir / variant if paired else run_dir
@@ -141,17 +145,18 @@ def test_report_reads_toml_and_evaluation_layouts(tmp_path, paired):
     assert all(variant in html for variant in (('plain', 'depencity') if paired else ('agent-01',)))
 
 
-@pytest.mark.parametrize(('experiment', 'name'), [
-    ('path-expressions/simple', 'path-expressions'),
-    ('path-expressions/internal-20', 'path-expressions-internal-20'),
-    ('path-expressions/strict-target-10', 'path-expressions-strict-target-10'),
+@pytest.mark.parametrize(('experiment', 'name', 'output'), [
+    ('path-expressions/simple', 'path-expressions', 'path-expressions'),
+    ('path-expressions/internal-20', 'path-expressions-internal-20', 'path-expressions-internal-20'),
+    ('path-expressions/strict-target-10', 'path-expressions-strict-target-10', 'path-expressions-strict-target-10'),
+    ('path-expressions/strict-ungated-10', 'path-expressions-strict-ungated-10', 'path-expressions/strict-ungated-10'),
 ])
-def test_catalog_manifests_load_from_other_working_directory(tmp_path, monkeypatch, experiment, name):
+def test_catalog_manifests_load_from_other_working_directory(tmp_path, monkeypatch, experiment, name, output):
     from agent_runner.manifest import load_manifest
 
     monkeypatch.chdir(tmp_path)
     settings = load_manifest(PROJECT / 'experiments' / experiment / 'experiment.toml')
     assert settings['name'] == name
     assert Path(settings['repo']) == PROJECT / 'experiments/fixtures'
-    assert Path(settings['log_root']) == PROJECT / 'out/experiments' / name
+    assert Path(settings['log_root']) == PROJECT / 'out/experiments' / output
     assert settings['task'] == (PROJECT / 'experiments' / experiment / 'task.md').read_text()

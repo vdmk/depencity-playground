@@ -42,7 +42,7 @@ def run(manifest: Path, resume: bool) -> None:
         if settings['iterations'] < saved['iterations']:
             raise click.UsageError('agent.iterations cannot be less than the saved total')
         if any(value != saved.get(key) for key, value in settings.items()
-               if key not in ('iterations', 'depencity_accept')):
+               if key not in ('iterations', 'reject_if_not_improved')):
             raise click.ClickException('manifest settings differ from the saved run')
     else:
         run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
@@ -56,7 +56,7 @@ def run(manifest: Path, resume: bool) -> None:
         runner = ComparisonRunner(
             repo, log_root, task, model, iterations, Path(settings['target']),
             tuple(settings['metrics']), Path(settings['test_script']), resume,
-            settings['depencity_accept'], variants=settings['variants'],
+            settings['reject_if_not_improved'], variants=settings['variants'],
         )
     else:
         directory = log_root / settings['variants'][0] if mode == 'evaluated' else log_root
@@ -66,7 +66,7 @@ def run(manifest: Path, resume: bool) -> None:
             runner = EvaluatedRunner(
                 codex, repo, task, iterations, Path(settings['target']), tuple(settings['metrics']),
                 Path(settings['test_script']), workspace=directory / 'workspace', resume=resume,
-                depencity_accept=settings['depencity_accept'] if settings['variants'] == ['depencity'] else 'all',
+                reject_if_not_improved=settings['reject_if_not_improved'] in ('all', settings['variants'][0]),
             )
         elif mode == 'workspaces':
             runner_class = FreshRunner if settings['branch_mode'] == 'fresh' else IncrementalRunner

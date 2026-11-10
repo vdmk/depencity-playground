@@ -14,7 +14,7 @@ class EvaluatedRunner(InPlaceRunner):
     """Evaluate each candidate before starting the next iteration."""
 
     def __init__(self, codex, repo, task, iterations, target, metrics, test_script,
-                 workspace, resume, depencity_accept):
+                 workspace, resume, reject_if_not_improved):
         target = (repo / target).resolve().relative_to(repo)
         test_script = (repo / test_script).resolve().relative_to(repo)
         for relative_path in (target, test_script):
@@ -25,7 +25,7 @@ class EvaluatedRunner(InPlaceRunner):
         super().__init__(codex, workspace, task, iterations, resume=resume)
         self.evaluator = Evaluator(
             workspace, target, metrics, test_script,
-            depencity_accept=depencity_accept,
+            reject_if_not_improved=reject_if_not_improved,
         )
         self.task += f' Target: {target}. Tests: {test_script}.'
 

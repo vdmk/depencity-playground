@@ -9,9 +9,12 @@ with `uv run agent-runner run experiments/NAME/experiment.toml`.
 | [path-expressions/internal-20](path-expressions/internal-20/experiment.toml) | depencity | 10 | Continued search without a fixed internal attempt count |
 | [path-expressions/strict-target-10](path-expressions/strict-target-10/experiment.toml) | depencity, plain | 20 | Requests ten internal candidates per turn |
 
+| [path-expressions/strict-ungated-10](path-expressions/strict-ungated-10/experiment.toml) | depencity, plain | 20 | Ten internal attempts; passing candidates may increase metrics |
+
 All use the original [calculator fixture](fixtures/calculator.py), Docker tests,
-and `graph.paths.expressions.count`. Depencity candidates must pass tests and
-strictly improve the metric; the plain comparison variant accepts passing tests.
+and `graph.paths.expressions.count`. All candidates must pass tests. Depencity additionally requires metric improvement
+except in `strict-ungated-10`, where both variants accept passing candidates regardless
+of metric changes. These manifests apply no metric gate to plain.
 The internal attempt count remains a prompt instruction, not a harness-enforced
 budget.
 
