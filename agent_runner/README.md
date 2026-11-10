@@ -14,7 +14,8 @@ live in TOML; the former configuration flags and separate run commands are remov
 
 ```toml
 name = "calculator-expression-paths"
-mode = "comparison"
+mode = "evaluated"
+variants = ["depencity", "plain"]
 repo = "../fixtures"
 log_root = "../../out/experiments/calculator-expression-paths"
 task_file = "task.md"
@@ -42,6 +43,13 @@ and one iteration. Omitting both task fields uses a generic behavior-preserving
 refactoring task. Unknown fields, unsupported mode settings, invalid types,
 and out-of-range budgets are rejected before creating a run.
 
+Top-level `variants` selects the evaluated agents: `["depencity"]` (default),
+`["plain"]`, or `["depencity", "plain"]`. Both variants run in parallel with
+the same task and iteration budget, in separate `depencity/` and `plain/` directories.
+Only `depencity` receives Depencity tools; `plain` accepts every candidate that
+passes tests. Variants cannot change when resuming. This setting requires
+`mode = "evaluated"`.
+
 ## Modes
 
 - `in-place`: cumulative iterations directly in `repo`, without Git management.
@@ -49,8 +57,6 @@ and out-of-range budgets are rejected before creating a run.
 - `evaluated`: copy the target and original test script into an isolated
   `workspace/`. Measure and Docker-test each candidate, retaining accepted edits.
   Original source files stay untouched.
-- `comparison`: run evaluated `plain/` and `depencity/` variants in parallel with
-  the same prompt. Only Depencity receives profiling tools.
 - `workspaces`: concurrent workers in isolated Git worktrees. Add
   `workers = 5` under `[agent]` and top-level `branch_mode = "fresh"`. Both require this
   mode. The repository must be clean. `fresh` creates one branch per iteration
@@ -61,14 +67,14 @@ and out-of-range budgets are rejected before creating a run.
 `agent.workers` is 1–100, default 5. `branch_mode` defaults to `fresh`.
 Workers are independent processes managed by the runner.
 
-`[evaluation]` is required for evaluated and comparison modes and unsupported
+`[evaluation]` is required for evaluated mode and unsupported
 in the other modes. `target` and `test_script` must name distinct existing files.
 `metrics` defaults to `["graph.paths.expressions.count"]` and must be a nonempty
 array of unique metric names.
 
 `acceptance = "all"` (default) retains candidates that pass original tests.
 `acceptance = "depencity"` also requires no selected metric increases and at least
-one decrease. In comparison mode this metric gate applies only to Depencity;
+one decrease. When both variants run, this metric gate applies only to Depencity;
 plain always retains candidates that pass tests. Rejected candidates are logged
 and rolled back. Test failures continue the search; agent and infrastructure
 failures stop the affected worker.
@@ -102,7 +108,7 @@ record saved beside its transcript.
 
 ## Reports and runtime
 
-Generate a self-contained HTML report for an evaluated or comparison run:
+Generate a self-contained HTML report for an evaluated run:
 
 ```sh
 python scripts/experiment_report.py out/experiments/EXPERIMENT/RUN_ID

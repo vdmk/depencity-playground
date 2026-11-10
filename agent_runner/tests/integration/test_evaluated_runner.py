@@ -130,7 +130,7 @@ def test_improvement_filter_requires_no_metric_regression(tmp_path, monkeypatch,
 
 def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
     repo, logs, arguments = prepare(tmp_path)
-    arguments['mode'] = 'comparison'
+    arguments['variants'] = ['plain', 'depencity']
     arguments.update({'iterations': 1})
 
     def initial(self, name, work_dir, task):
@@ -156,7 +156,7 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
         (2, {'depencity_accept': 'depencity'}), (3, {}),
         (4, {'depencity_accept': 'all'}),
     ]:
-        result = invoke_manifest({'mode': 'comparison', 'log_root': str(logs), 'resume': True, 'iterations': total, **flags})
+        result = invoke_manifest({'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True, 'iterations': total, **flags})
         assert result.exit_code == 0, result.output
         for variant in ('plain', 'depencity'):
             filtered = variant == 'depencity' and total != 4
@@ -213,7 +213,7 @@ def test_evaluated_failures_restore_target_and_stop(tmp_path, monkeypatch, failu
 def test_failed_tests_roll_back_and_continue(tmp_path, monkeypatch, paired, bad_source):
     repo, logs, arguments = prepare(tmp_path)
     if paired:
-        arguments['mode'] = 'comparison'
+        arguments['variants'] = ['plain', 'depencity']
     starts = []
 
     def run_agent(self, name, work_dir, task):
@@ -234,7 +234,7 @@ def test_failed_tests_roll_back_and_continue(tmp_path, monkeypatch, paired, bad_
     assert sum(r['status'] == 'accepted' for r in reports) == (2 if paired else 1)
     if paired:
         starts.clear()
-        result = invoke_manifest({'mode': 'comparison', 'log_root': str(logs), 'resume': True, 'iterations': 2})
+        result = invoke_manifest({'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True, 'iterations': 2})
         assert result.exit_code == 0, result.output
         assert starts == []
 
@@ -379,7 +379,7 @@ def test_evaluated_runner_copies_only_target_and_test_script(tmp_path, monkeypat
 
 def test_comparison_runs_variants_in_parallel_and_continues(tmp_path, monkeypatch):
     repo, logs, arguments = prepare(tmp_path)
-    arguments['mode'] = 'comparison'
+    arguments['variants'] = ['plain', 'depencity']
     arguments.update({'iterations': 1})
     barrier = Barrier(2)
     calls = []
@@ -402,7 +402,7 @@ def test_comparison_runs_variants_in_parallel_and_continues(tmp_path, monkeypatc
     saved = {path: path.read_bytes() for path in root.glob('*/*.evaluation.json')}
     assert sorted(calls) == [('depencity', 'depencity.1', ORIGINAL), ('plain', 'plain.1', ORIGINAL)]
     calls.clear()
-    result = invoke_manifest({'mode': 'comparison', 'log_root': str(logs), 'iterations': 2, 'resume': True})
+    result = invoke_manifest({'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'iterations': 2, 'resume': True})
     assert result.exit_code == 0, result.output
     assert sorted(calls) == [('depencity', 'depencity.2', IMPROVED), ('plain', 'plain.2', IMPROVED)]
     assert all(path.read_bytes() == data for path, data in saved.items())
@@ -415,7 +415,7 @@ def test_comparison_runs_variants_in_parallel_and_continues(tmp_path, monkeypatc
 
 def test_comparison_continue_restores_interrupted_candidate(tmp_path, monkeypatch):
     repo, logs, arguments = prepare(tmp_path)
-    arguments['mode'] = 'comparison'
+    arguments['variants'] = ['plain', 'depencity']
     arguments.update({'iterations': 1})
     calls = []
 
@@ -447,7 +447,7 @@ def test_comparison_continue_restores_interrupted_candidate(tmp_path, monkeypatc
 
 def test_comparison_continue_requires_matching_run(tmp_path, monkeypatch):
     repo, logs, arguments = prepare(tmp_path)
-    arguments['mode'] = 'comparison'
+    arguments['variants'] = ['plain', 'depencity']
     result = invoke_manifest({**arguments, 'resume': True})
     assert result.exit_code == 1
     assert 'no run to continue' in result.output
@@ -461,7 +461,7 @@ def test_comparison_continue_requires_matching_run(tmp_path, monkeypatch):
 
 def test_comparison_continue_retries_only_failed_variant(tmp_path, monkeypatch):
     repo, logs, arguments = prepare(tmp_path)
-    arguments['mode'] = 'comparison'
+    arguments['variants'] = ['plain', 'depencity']
     arguments.update({'iterations': 1})
 
     def initial(self, name, work_dir, task):
@@ -483,7 +483,7 @@ def test_comparison_continue_retries_only_failed_variant(tmp_path, monkeypatch):
         return CodexResult(0, 'simplify')
 
     monkeypatch.setattr(Codex, 'run', retry)
-    result = invoke_manifest({'mode': 'comparison', 'log_root': str(logs), 'resume': True})
+    result = invoke_manifest({'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True})
     assert result.exit_code == 0, result.output
     assert calls == ['plain.1']
     assert depencity_report.read_bytes() == saved_report
@@ -556,3 +556,23 @@ def test_workspace_path_rejects_symlinked_parent(tmp_path):
     with pytest.raises(OSError, match='symlinks are not allowed'):
         checked_workspace_path(workspace, 'tests/test_target.py').write_text('replacement\n')
     assert (outside / 'test_target.py').read_text() == 'original\n'
+
+
+def test_plain_only_variant_disables_tools_and_metric_gate(tmp_path, monkeypatch):
+    repo, logs, arguments = prepare(tmp_path)
+
+    def run_agent(self, name, work_dir, task):
+        assert self.with_depencity is False
+        (work_dir / 'target.py').write_text(WORSE)
+        return CodexResult(0, 'passing candidate with more expression paths')
+
+    monkeypatch.setattr(Codex, 'run', run_agent)
+    result = invoke_manifest({**arguments, 'iterations': 1, 'variants': ['plain'],
+                              'depencity_accept': 'depencity'})
+    assert result.exit_code == 0, result.output
+    run_dir = next(logs.iterdir())
+    record = tomllib.loads((run_dir / 'run.toml').read_text())
+    assert record['variants'] == ['plain']
+    report = json.loads((run_dir / 'agent-01.1.evaluation.json').read_text())
+    assert report['accepted'] is True
+    assert (run_dir / 'workspace/target.py').read_text() == WORSE

@@ -3,11 +3,11 @@
 Each experiment has a checked-in `experiment.toml` and a Markdown task. Run it
 with `uv run agent-runner run experiments/NAME/experiment.toml`.
 
-| Experiment | Mode | Iterations | Search prompt |
+| Experiment | Variants | Iterations | Search prompt |
 |---|---|---:|---|
-| [path-expressions/simple](path-expressions/simple/experiment.toml) | comparison | 3 per variant | Shared plain-versus-Depencity task |
-| [path-expressions/internal-20](path-expressions/internal-20/experiment.toml) | evaluated | 10 | Continued search without a fixed internal attempt count |
-| [path-expressions/strict-target-10](path-expressions/strict-target-10/experiment.toml) | evaluated | 20 | Requests ten internal candidates per turn |
+| [path-expressions/simple](path-expressions/simple/experiment.toml) | depencity, plain | 3 per variant | Shared plain-versus-Depencity task |
+| [path-expressions/internal-20](path-expressions/internal-20/experiment.toml) | depencity | 10 | Continued search without a fixed internal attempt count |
+| [path-expressions/strict-target-10](path-expressions/strict-target-10/experiment.toml) | depencity, plain | 20 | Requests ten internal candidates per turn |
 
 All use the original [calculator fixture](fixtures/calculator.py), Docker tests,
 and `graph.paths.expressions.count`. Depencity candidates must pass tests and

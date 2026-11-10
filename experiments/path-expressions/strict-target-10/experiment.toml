@@ -1,5 +1,6 @@
 name = "path-expressions-strict-target-10"
 mode = "evaluated"
+variants = ["depencity", "plain"]
 repo = "../../fixtures"
 log_root = "../../../out/experiments/path-expressions-strict-target-10"
 task_file = "task.md"

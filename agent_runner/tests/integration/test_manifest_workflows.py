@@ -74,6 +74,10 @@ def test_manifest_runs_from_another_directory_and_snapshots_prompt(tmp_path, mon
     ('log_root = "runs"\n[agent]\niteration = 2', 'unknown agent keys'),
     ('log_root = "runs"\n[agent]\niterations = true', 'agent.iterations must be an integer'),
     ('log_root = "runs"\n[agent]\nmodel = 3', 'agent.model must be a nonempty string'),
+    ('log_root = "runs"\nvariants = ["plain"]', 'variants requires evaluated mode'),
+    *[(f'log_root = "runs"\nmode = "evaluated"\nvariants = {value}',
+       'variants must be a nonempty array')
+      for value in ('[]', '["plain", "plain"]', '["unknown"]', '"plain"', '[[]]')],
     ('log_root = "runs"\n[agent]\nworkers = 2', 'requires workspaces mode'),
     ('log_root = "runs"\nbranch_mode = "fresh"', 'branch_mode requires workspaces mode'),
     ('log_root = "runs"\nmode = "workspaces"\nbranch_mode = "invalid"',
@@ -107,7 +111,8 @@ def test_report_reads_toml_and_evaluation_layouts(tmp_path, paired):
     run_dir.mkdir()
     (run_dir / 'run.toml').write_text(
         'name = "report-example"\n'
-        f'mode = "{"comparison" if paired else "evaluated"}"\n'
+        'mode = "evaluated"\n'
+        f'variants = {json.dumps(["depencity", "plain"] if paired else ["depencity"])}\n'
         'task = "Simplify <parser>"\n'
         '[agent]\nmodel = "test-model"\n'
         'iterations = 1\n'

@@ -52,19 +52,19 @@ def run(manifest: Path, resume: bool) -> None:
     click.echo(f'Run: {log_root}')
     repo = Path(settings['repo'])
     task, model, iterations = (settings[key] for key in ('task', 'model', 'iterations'))
-    if mode == 'comparison':
+    if mode == 'evaluated' and len(settings['variants']) > 1:
         runner = ComparisonRunner(
             repo, log_root, task, model, iterations, Path(settings['target']),
             tuple(settings['metrics']), Path(settings['test_script']), resume,
-            settings['depencity_accept'],
+            settings['depencity_accept'], variants=settings['variants'],
         )
     else:
-        codex = Codex(model, log_root)
+        codex = Codex(model, log_root, with_depencity=settings.get('variants', ['depencity']) != ['plain'])
         if mode == 'evaluated':
             runner = EvaluatedRunner(
                 codex, repo, task, iterations, Path(settings['target']), tuple(settings['metrics']),
                 Path(settings['test_script']), workspace=log_root / 'workspace', resume=resume,
-                depencity_accept=settings['depencity_accept'],
+                depencity_accept=settings['depencity_accept'] if settings['variants'] == ['depencity'] else 'all',
             )
         elif mode == 'workspaces':
             runner_class = FreshRunner if settings['branch_mode'] == 'fresh' else IncrementalRunner

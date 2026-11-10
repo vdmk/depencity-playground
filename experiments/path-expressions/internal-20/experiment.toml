@@ -1,5 +1,6 @@
 name = "path-expressions-internal-20"
 mode = "evaluated"
+variants = ["depencity"]
 repo = "../../fixtures"
 log_root = "../../../out/experiments/path-expressions-internal-20"
 task_file = "task.md"

@@ -10,7 +10,9 @@ The manifest supplies the model, prompt file, iteration budget, metric, and
 acceptance policy. Paths are relative to the manifest directory; `target` and
 `test_script` are relative to `repo`.
 
-A Depencity worker runs cumulative iterations. A candidate is retained only when tests pass and the expression-path count decreases.
+Depencity and plain workers each run 20 cumulative iterations in parallel.
+Depencity retains a candidate only when tests pass and the expression-path count
+decreases; plain retains every candidate that passes tests.
 Original fixtures stay untouched. Each worker uses a persistent `workspace/`;
 logs, candidate snapshots, diffs, evaluations, and resolved `run.toml` stay outside
 it. Original tests are restored before Docker validation.

@@ -1,5 +1,6 @@
 name = "path-expressions"
-mode = "comparison"
+mode = "evaluated"
+variants = ["depencity", "plain"]
 repo = "../../fixtures"
 log_root = "../../../out/experiments/path-expressions"
 task_file = "task.md"

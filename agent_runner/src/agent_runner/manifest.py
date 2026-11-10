@@ -24,7 +24,7 @@ def load_manifest(path: Path) -> dict:
     """Resolve paths from the manifest directory, and evaluation paths from repo."""
     path = path.resolve()
     data = tomllib.loads(path.read_text())
-    unknown = data.keys() - {'name', 'mode', 'repo', 'log_root', 'task', 'task_file', 'branch_mode', *TABLES}
+    unknown = data.keys() - {'name', 'mode', 'repo', 'log_root', 'task', 'task_file', 'branch_mode', 'variants', *TABLES}
     if unknown:
         raise click.UsageError(f'unknown manifest keys: {", ".join(sorted(unknown))}')
     settings = dict(name=path.parent.name, mode='in-place', repo='.', task=DEFAULT_TASK,
@@ -37,10 +37,19 @@ def load_manifest(path: Path) -> dict:
     if 'log_root' not in settings:
         raise click.UsageError('manifest requires log_root')
     mode = settings['mode']
-    if mode not in ('in-place', 'evaluated', 'comparison', 'workspaces'):
-        raise click.UsageError('mode must be in-place, evaluated, comparison, or workspaces')
+    if mode not in ('in-place', 'evaluated', 'workspaces'):
+        raise click.UsageError('mode must be in-place, evaluated, or workspaces')
+    if 'variants' in data and mode != 'evaluated':
+        raise click.UsageError('variants requires evaluated mode')
+    if mode == 'evaluated':
+        variants = data.get('variants', ['depencity'])
+        if (not isinstance(variants, list) or not variants
+                or any(variant not in ('depencity', 'plain') for variant in variants)
+                or len(set(variants)) != len(variants)):
+            raise click.UsageError('variants must be a nonempty array of unique depencity or plain names')
+        settings['variants'] = variants
     allowed = {'agent'}
-    if mode in ('evaluated', 'comparison'):
+    if mode == 'evaluated':
         allowed.add('evaluation')
         settings.update(metrics=['graph.paths.expressions.count'], depencity_accept='all')
     if mode == 'workspaces':
@@ -81,7 +90,7 @@ def load_manifest(path: Path) -> dict:
     repo = Path(settings['repo'])
     if not repo.is_dir():
         raise click.UsageError(f'repo is not a directory: {repo}')
-    if mode in ('evaluated', 'comparison'):
+    if mode == 'evaluated':
         for key in ('target', 'test_script'):
             if not isinstance(settings.get(key), str) or not settings[key].strip():
                 raise click.UsageError('evaluation requires target and test_script')
@@ -108,8 +117,9 @@ def save_manifest(path: Path, settings: dict) -> None:
     """Save effective settings with absolute paths and the complete prompt text."""
     lines = [f'{key} = {json.dumps(settings[key], ensure_ascii=False)}'
              for key in ('name', 'mode', 'repo', 'log_root', 'task')]
-    if 'branch_mode' in settings:
-        lines.append(f'branch_mode = {json.dumps(settings["branch_mode"])}')
+    for key in ('branch_mode', 'variants'):
+        if key in settings:
+            lines.append(f'{key} = {json.dumps(settings[key])}')
     for table, mapping in TABLES.items():
         values = [f'{key} = {json.dumps(settings[setting], ensure_ascii=False)}'
                   for key, setting in mapping.items() if setting in settings]
