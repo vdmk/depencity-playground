@@ -136,15 +136,17 @@ def test_report_reads_toml_and_evaluation_layouts(tmp_path, paired):
     assert all(variant in html for variant in (('plain', 'depencity') if paired else ('agent-01',)))
 
 
-@pytest.mark.parametrize('experiment', [
-    'path-expressions', 'path-expressions-internal-20', 'path-expressions-strict-target-10',
+@pytest.mark.parametrize(('experiment', 'name'), [
+    ('path-expressions/simple', 'path-expressions'),
+    ('path-expressions/internal-20', 'path-expressions-internal-20'),
+    ('path-expressions/strict-target-10', 'path-expressions-strict-target-10'),
 ])
-def test_catalog_manifests_load_from_other_working_directory(tmp_path, monkeypatch, experiment):
+def test_catalog_manifests_load_from_other_working_directory(tmp_path, monkeypatch, experiment, name):
     from agent_runner.manifest import load_manifest
 
     monkeypatch.chdir(tmp_path)
     settings = load_manifest(PROJECT / 'experiments' / experiment / 'experiment.toml')
-    assert settings['name'] == experiment
+    assert settings['name'] == name
     assert Path(settings['repo']) == PROJECT / 'experiments/fixtures'
-    assert Path(settings['log_root']) == PROJECT / 'out/experiments' / experiment
+    assert Path(settings['log_root']) == PROJECT / 'out/experiments' / name
     assert settings['task'] == (PROJECT / 'experiments' / experiment / 'task.md').read_text()

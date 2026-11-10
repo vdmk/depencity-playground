@@ -1,9 +1,9 @@
-# Path expressions strict target 10
+# Path expressions internal 20
 
 Run the checked-in [manifest](experiment.toml):
 
 ```sh
-uv run agent-runner run experiments/path-expressions-strict-target-10/experiment.toml
+uv run agent-runner run experiments/path-expressions/internal-20/experiment.toml
 ```
 
 The manifest supplies the model, prompt file, iteration budget, metric, and
@@ -19,15 +19,15 @@ To resume the latest run, increase `[agent].iterations` in the manifest if
 needed, then run:
 
 ```sh
-uv run agent-runner run experiments/path-expressions-strict-target-10/experiment.toml --continue
+uv run agent-runner run experiments/path-expressions/internal-20/experiment.toml --continue
 ```
 
 Generate a self-contained HTML report:
 
 ```sh
-python scripts/experiment_report.py out/experiments/path-expressions-strict-target-10/RUN_ID
+python scripts/experiment_report.py out/experiments/path-expressions-internal-20/RUN_ID
 ```
 
 Historical runs from the CLI-argument interface are archived under
-`out/archive/experiments/path-expressions-strict-target-10/`. Their original logs and reports are preserved;
+`out/archive/experiments/path-expressions-internal-20/`. Their original logs and reports are preserved;
 they cannot be resumed with the manifest interface.

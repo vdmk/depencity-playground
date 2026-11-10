@@ -1,13 +1,13 @@
-name = "path-expressions-internal-20"
+name = "path-expressions-strict-target-10"
 mode = "evaluated"
-repo = "../fixtures"
-log_root = "../../out/experiments/path-expressions-internal-20"
+repo = "../../fixtures"
+log_root = "../../../out/experiments/path-expressions-strict-target-10"
 task_file = "task.md"
 
 [agent]
 model = "gpt-6-luna"
 
-iterations = 10
+iterations = 20
 
 [evaluation]
 target = "calculator.py"

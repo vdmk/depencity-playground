@@ -5,9 +5,9 @@ with `uv run agent-runner run experiments/NAME/experiment.toml`.
 
 | Experiment | Mode | Iterations | Search prompt |
 |---|---|---:|---|
-| [path-expressions](path-expressions/experiment.toml) | comparison | 3 per variant | Shared plain-versus-Depencity task |
-| [path-expressions-internal-20](path-expressions-internal-20/experiment.toml) | evaluated | 10 | Continued search without a fixed internal attempt count |
-| [path-expressions-strict-target-10](path-expressions-strict-target-10/experiment.toml) | evaluated | 20 | Requests ten internal candidates per turn |
+| [path-expressions/simple](path-expressions/simple/experiment.toml) | comparison | 3 per variant | Shared plain-versus-Depencity task |
+| [path-expressions/internal-20](path-expressions/internal-20/experiment.toml) | evaluated | 10 | Continued search without a fixed internal attempt count |
+| [path-expressions/strict-target-10](path-expressions/strict-target-10/experiment.toml) | evaluated | 20 | Requests ten internal candidates per turn |
 
 All use the original [calculator fixture](fixtures/calculator.py), Docker tests,
 and `graph.paths.expressions.count`. Depencity candidates must pass tests and
@@ -15,7 +15,8 @@ strictly improve the metric; the plain comparison variant accepts passing tests.
 The internal attempt count remains a prompt instruction, not a harness-enforced
 budget.
 
-Run output goes to `out/experiments/NAME/RUN_ID/`, including a resolved `run.toml`.
+Each manifest specifies its output directory under `out/experiments/`, including
+a resolved `run.toml`. Existing experiment names and output paths are preserved.
 Use `--continue` with the same manifest to resume; edit `agent.iterations` to
 increase the total. See the [runner documentation](../agent_runner/README.md)
 for the complete schema and resume rules.

@@ -3,8 +3,8 @@
 Run Codex refactoring searches from a TOML experiment definition:
 
 ```sh
-agent-runner run experiments/path-expressions/experiment.toml
-agent-runner run experiments/path-expressions/experiment.toml --continue
+agent-runner run experiments/path-expressions/simple/experiment.toml
+agent-runner run experiments/path-expressions/simple/experiment.toml --continue
 ```
 
 The CLI accepts a manifest and an optional `--continue`. All experiment settings

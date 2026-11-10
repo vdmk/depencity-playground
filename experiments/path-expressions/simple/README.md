@@ -3,7 +3,7 @@
 Run the checked-in [manifest](experiment.toml):
 
 ```sh
-uv run agent-runner run experiments/path-expressions/experiment.toml
+uv run agent-runner run experiments/path-expressions/simple/experiment.toml
 ```
 
 The manifest supplies the model, prompt file, iteration budget, metric, and
@@ -19,7 +19,7 @@ To resume the latest run, increase `[agent].iterations` in the manifest if
 needed, then run:
 
 ```sh
-uv run agent-runner run experiments/path-expressions/experiment.toml --continue
+uv run agent-runner run experiments/path-expressions/simple/experiment.toml --continue
 ```
 
 Generate a self-contained HTML report:
