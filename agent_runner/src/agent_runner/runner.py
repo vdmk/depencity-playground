@@ -1,6 +1,9 @@
 """Run manifest-defined refactoring searches."""
 
 import os
+import json
+import subprocess
+from importlib.metadata import PackageNotFoundError, version
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -48,6 +51,19 @@ def run(manifest: Path, resume: bool) -> None:
         run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
         log_root = base / run_id
         log_root.mkdir(parents=True)
+    if not resume:
+        commit = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'], cwd=settings['repo'],
+            capture_output=True, text=True,
+        )
+        try:
+            depencity_version = version('depencity')
+        except PackageNotFoundError:
+            depencity_version = None
+        (log_root / 'metadata.json').write_text(json.dumps({
+            'commit_hash': commit.stdout.strip() if commit.returncode == 0 else None,
+            'depencity_version': depencity_version,
+        }, indent=2) + '\n')
     save_manifest(log_root / 'run.toml', settings)
     click.echo(f'Run: {log_root}')
     repo = Path(settings['repo'])
