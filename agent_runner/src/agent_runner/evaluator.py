@@ -29,7 +29,7 @@ def checked_workspace_path(root, relative):
 @dataclass
 class Snapshot:
     source: bytes
-    values: dict[str, int | float]
+    values: dict
 
 
 class Evaluator:
@@ -52,7 +52,7 @@ class Evaluator:
         )
         for scope in json.loads(result.stdout)['scopes']:
             if scope['id'] == '__root__':
-                return {metric: scope['profile'][metric] for metric in self.metrics}
+                return scope['profile']
         raise ValueError(f'no root profile for {self.target}')
 
     def snapshot(self):
@@ -96,6 +96,9 @@ class Evaluator:
                 status = 'rejected'
                 if test_return_code == 0:
                     after_values = self.measure()
+                    Path(f'{log_path}.profile.json').write_text(
+                        json.dumps(after_values, indent=2) + '\n'
+                    )
                     accepted = not self.reject_if_not_improved or (
                         all(after_values[key] <= before.values[key] for key in self.metrics)
                         and any(after_values[key] < before.values[key] for key in self.metrics)
@@ -103,7 +106,10 @@ class Evaluator:
                     status = 'accepted' if accepted else 'rejected'
             report = {
                 'target': str(self.target), 'metrics': self.metrics,
-                'before': before.values, 'after': after_values, 'accepted': accepted,
+                'before': {key: before.values[key] for key in self.metrics},
+                'after': ({key: after_values[key] for key in self.metrics}
+                          if after_values is not None else None),
+                'accepted': accepted,
                 'status': status, 'agent_return_code': agent_return_code,
                 'test_return_code': test_return_code,
                 'reject_if_not_improved': self.reject_if_not_improved,

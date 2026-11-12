@@ -78,6 +78,12 @@ def test_evaluated_iterations_progress_regardless_of_metrics(tmp_path, monkeypat
     assert (run_dir / 'depencity/agent-01.2.diff').read_text()
     assert (run_dir / 'depencity/agent-01.2.candidate.py').read_text() == WORSE
     assert all('1 passed' in path.read_text() for path in (run_dir / 'depencity').glob('*.tests.txt'))
+    profiles = [json.loads(path.read_text()) for path in sorted(logs.rglob('*.profile.json'))]
+    assert len(profiles) == 3
+    for profile, report in zip(profiles, reports, strict=True):
+        assert profile['graph.paths.expressions.count'] == report['after']['graph.paths.expressions.count']
+        assert 'variable.total.write.count' in profile
+        assert len(profile) > len(report['after'])
     assert not (repo / '.git').exists()
 
 
