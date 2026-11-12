@@ -29,6 +29,26 @@ Generate a self-contained HTML report:
 python scripts/experiment_report.py out/experiments/EXPERIMENT/RUN_ID
 ```
 
+Generate separate code-only slideshows, then render one video per variant:
+
+```sh
+uv run scripts/experiment_slideshow.py out/experiments/EXPERIMENT/RUN_ID
+uv run scripts/experiment_video.py out/experiments/EXPERIMENT/RUN_ID/slideshow
+```
+
+Open `slideshow/depencity.html` or `slideshow/plain.html` directly. Use Play,
+Previous/Next, arrow keys, or the iteration selector. Slides show saved before
+and candidate code with eight context lines (adjust with `--context N`); rejected candidates appear before
+rollback. Large changes span overlapping views, and long lines continue on the next
+visual row. Changed words have stronger highlighting, and each view identifies
+the enclosing function and iteration. No metrics are included.
+
+Videos and their timeline JSON files are written under `slideshow/videos/`.
+The renderer uses installed Google Chrome; pass `--chrome PATH` for another
+Chrome/Chromium executable, `--seconds 3.5` for time per view, or `--output PATH`
+for another destination. Playwright and FFmpeg are installed through the script's
+isolated uv dependencies. Generated artifacts stay under `out/`.
+
 See the [manifest and runner documentation](agent_runner/README.md) and
 [experiment catalog](experiments/README.md).
 
