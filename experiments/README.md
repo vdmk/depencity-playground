@@ -30,3 +30,11 @@ Historical argument-based runs and their original reports are preserved under
 ```sh
 python scripts/experiment_report.py out/experiments/NAME/RUN_ID
 ```
+
+## Decomposition
+
+[decomposition/strict-ungated-10](decomposition/strict-ungated-10/experiment.toml)
+compares Depencity and plain over 20 iterations each. It targets the maximum
+per-function distinct variable dependency count, with whole-file expression paths
+as a tie-breaker. See its [README](decomposition/strict-ungated-10/README.md) for
+measurement and harness limitations.

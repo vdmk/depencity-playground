@@ -1,0 +1,17 @@
+name = "decomposition-strict-ungated-10"
+mode = "evaluated"
+variants = ["depencity", "plain"]
+repo = "../../fixtures"
+log_root = "../../../out/experiments/decomposition/strict-ungated-10"
+task_file = "task.md"
+
+[agent]
+model = "gpt-6-luna"
+
+iterations = 20
+
+[evaluation]
+target = "calculator.py"
+test_script = "test_calculator.py"
+metrics = ["variable.total.read.distinct_count", "graph.paths.expressions.count", "variable.enclosing.write.count", "variable.module.write.count", "attribute.total.write.count", "subscript.write.count", "call.dependencies.resolved_targets.count"]
+reject_if_not_improved = false
