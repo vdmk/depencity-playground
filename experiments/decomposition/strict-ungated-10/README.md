@@ -1,6 +1,6 @@
 # Decomposition without metric gating
 
-Based on the latest `path-expressions/strict-ungated-10` run, with 20 iterations
+Based on the latest `path-expressions/strict-ungated-10` run, with 40 iterations
 per variant, the same fixture, model, and ten internal candidate attempts.
 
 ```sh

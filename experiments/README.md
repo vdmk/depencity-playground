@@ -34,7 +34,12 @@ python scripts/experiment_report.py out/experiments/NAME/RUN_ID
 ## Decomposition
 
 [decomposition/strict-ungated-10](decomposition/strict-ungated-10/experiment.toml)
-compares Depencity and plain over 20 iterations each. It targets the maximum
+compares Depencity and plain over 40 iterations each. It targets the maximum
 per-function distinct variable dependency count, with whole-file expression paths
 as a tie-breaker. See its [README](decomposition/strict-ungated-10/README.md) for
 measurement and harness limitations.
+
+[decomposition-calls/strict-ungated-10](decomposition-calls/strict-ungated-10/experiment.toml)
+adds whole-file static call count to the decomposition objectives, retaining
+20 iterations per variant and the ungated harness. See its
+[README](decomposition-calls/strict-ungated-10/README.md) for acceptance rules.

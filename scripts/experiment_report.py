@@ -219,10 +219,14 @@ function drawMetric(metric,panel){
  const last=Math.max(...rows.map(r=>r.iteration),1);
  const x=i=>left+i/last*(w-left-right),y=v=>h-bottom-transform(v)/maximum*(h-top-bottom);
  let svg=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(metric)} by iteration"><title>${esc(metric)} by iteration</title>`;
- for(let i=0;i<=5;i++){
-  const t=maximum*i/5,yy=h-bottom-t/maximum*(h-top-bottom);
+ const ticks=[...new Set(Array.from({length:6},(_,i)=>{
+  const value=inverse(maximum*i/5);
+  return Math.min(Math.round(value),Math.floor(inverse(maximum)));
+ }))];
+ for(const value of ticks){
+  const yy=y(value);
   svg+=`<line x1="${left}" x2="${w-right}" y1="${yy}" y2="${yy}" stroke="#e2e8f0"/>
-   <text x="${left-12}" y="${yy+5}" text-anchor="end" fill="#52647b" font-size="12">${fmt(inverse(t))}</text>`;
+   <text x="${left-12}" y="${yy+5}" text-anchor="end" fill="#52647b" font-size="12">${fmt(value)}</text>`;
  }
  for(let i=0;i<=last;i++){
   if(last>30&&i%Math.ceil(last/20)!==0&&i!==last)continue;

@@ -8,7 +8,7 @@ task_file = "task.md"
 [agent]
 model = "gpt-6-luna"
 
-iterations = 20
+iterations = 40
 
 [evaluation]
 target = "calculator.py"
