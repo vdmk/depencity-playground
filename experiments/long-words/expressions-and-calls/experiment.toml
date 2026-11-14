@@ -1,0 +1,16 @@
+name = "long-words-expressions-and-calls"
+mode = "evaluated"
+variants = ["depencity", "plain"]
+repo = "../../fixtures"
+log_root = "../../../out/experiments/long-words/expressions-and-calls"
+task_file = "task.md"
+
+[agent]
+model = "gpt-6-luna"
+iterations = 20
+
+[evaluation]
+target = "long_words.py"
+test_script = "test_long_words.py"
+metrics = ["graph.paths.expressions.count", "call.occurrences.total.count", "call.dependencies.external.distinct_count"]
+reject_if_not_improved = false

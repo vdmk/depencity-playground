@@ -6,6 +6,7 @@ with `uv run agent-runner run experiments/NAME/experiment.toml`.
 | Experiment | Variants | Iterations | Search prompt |
 |---|---|---:|---|
 | [long-words/path-expressions](long-words/path-expressions/experiment.toml) | depencity, plain | 20 per variant | Find words longer than average using two loops; passing candidates accepted without a metric gate |
+| [long-words/expressions-and-calls-v2](long-words/expressions-and-calls-v2/experiment.toml) | depencity, plain | 20 per variant | Expression paths and call metrics with a heavy pytest-benchmark test; metric gating disabled |
 | [path-expressions/simple](path-expressions/simple/experiment.toml) | depencity, plain | 3 per variant | Shared plain-versus-Depencity task |
 | [path-expressions/internal-20](path-expressions/internal-20/experiment.toml) | depencity | 10 | Continued search without a fixed internal attempt count |
 | [path-expressions/strict-target-10](path-expressions/strict-target-10/experiment.toml) | depencity, plain | 20 | Requests ten internal candidates per turn |
