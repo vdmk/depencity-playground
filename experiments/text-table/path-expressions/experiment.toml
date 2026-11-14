@@ -1,0 +1,16 @@
+name = "text-table-path-expressions"
+mode = "evaluated"
+variants = ["depencity", "plain"]
+repo = "../../fixtures"
+log_root = "../../../out/experiments/text-table/path-expressions"
+task_file = "task.md"
+
+[agent]
+model = "gpt-6-luna"
+iterations = 40
+
+[evaluation]
+target = "text_table.py"
+test_script = "test_text_table.py"
+metrics = ["graph.paths.expressions.count"]
+reject_if_not_improved = false
