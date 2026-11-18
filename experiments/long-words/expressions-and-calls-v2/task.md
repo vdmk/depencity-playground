@@ -11,3 +11,4 @@ Refactor only long_words.py; do not commit.
 Keep the change focused on one cohesive area.
 
 Inspect the pytest-benchmark results before and after your change. Do not degrade benchmark performance.
+Also inspect the memory table printed by the tests before and after your change. Do not increase peak memory usage.
