@@ -4,7 +4,6 @@ import json
 import os
 import shlex
 import subprocess
-import tomllib
 from threading import Barrier
 from pathlib import Path
 
@@ -147,7 +146,7 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
     result = invoke_manifest(arguments)
     assert result.exit_code == 0, result.output
     root, = logs.iterdir()
-    manifest = root / 'run.toml'
+    manifest = root / 'metadata.json'
     calls = []
 
     def worse(self, name, work_dir, task):
@@ -171,7 +170,7 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
             assert report['reject_if_not_improved'] is filtered
             assert report['after']['graph.paths.expressions.count'] == 3
             assert (root / variant / 'workspace/target.py').read_text() == (IMPROVED if filtered else WORSE)
-        assert tomllib.loads(manifest.read_text())['evaluation']['reject_if_not_improved'] == (False if total == 4 else 'depencity')
+        assert json.loads(manifest.read_text())['settings']['evaluation']['reject_if_not_improved'] == (False if total == 4 else 'depencity')
     assert sorted(calls) == ['depencity.2', 'depencity.3', 'depencity.4', 'plain.2', 'plain.3', 'plain.4']
 
 
@@ -577,7 +576,7 @@ def test_plain_only_variant_disables_tools_and_metric_gate(tmp_path, monkeypatch
                               'reject_if_not_improved': 'depencity'})
     assert result.exit_code == 0, result.output
     run_dir = next(logs.iterdir())
-    record = tomllib.loads((run_dir / 'run.toml').read_text())
+    record = json.loads((run_dir / 'metadata.json').read_text())['settings']
     assert record['variants'] == ['plain']
     report = json.loads((run_dir / 'plain/agent-01.1.evaluation.json').read_text())
     assert report['accepted'] is True
@@ -619,7 +618,7 @@ def test_metric_rejection_selects_variants(tmp_path, monkeypatch, policy, candid
                               'reject_if_not_improved': policy})
     assert result.exit_code == 0, result.output
     root, = logs.iterdir()
-    assert tomllib.loads((root / 'run.toml').read_text())['evaluation']['reject_if_not_improved'] == policy
+    assert json.loads((root / 'metadata.json').read_text())['settings']['evaluation']['reject_if_not_improved'] == policy
     for variant in ('depencity', 'plain'):
         filtered = policy == 'all' or policy == variant
         report = json.loads((root / variant / f'{variant}.1.evaluation.json').read_text())

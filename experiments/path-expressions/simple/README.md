@@ -12,7 +12,7 @@ acceptance policy. Paths are relative to the manifest directory; `target` and
 
 Plain and Depencity variants run in parallel with the same prompt. Only Depencity receives profiling tools and requires metric improvement; plain retains changes that pass tests.
 Original fixtures stay untouched. Each worker uses a persistent `workspace/`;
-logs, candidate snapshots, diffs, evaluations, and resolved `run.toml` stay outside
+logs, candidate snapshots, diffs, evaluations, and run metadata stay outside
 it. Original tests are restored before Docker validation.
 
 To resume the latest run, increase `[agent].iterations` in the manifest if

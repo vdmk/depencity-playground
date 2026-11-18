@@ -14,7 +14,7 @@ Depencity and plain workers each run 20 cumulative iterations in parallel.
 Depencity retains a candidate only when tests pass and the expression-path count
 decreases; plain retains every candidate that passes tests.
 Original fixtures stay untouched. Each worker uses a persistent `workspace/`;
-logs, candidate snapshots, diffs, evaluations, and resolved `run.toml` stay outside
+logs, candidate snapshots, diffs, evaluations, and run metadata stay outside
 it. Original tests are restored before Docker validation.
 
 To resume the latest run, increase `[agent].iterations` in the manifest if

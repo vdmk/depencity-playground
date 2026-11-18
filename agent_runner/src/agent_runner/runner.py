@@ -11,7 +11,7 @@ import click
 
 from agent_runner.cli_utils import cli_errors
 from agent_runner.codex import Codex
-from agent_runner.manifest import DEFAULT_TASK, load_manifest, save_manifest
+from agent_runner.manifest import DEFAULT_TASK, load_manifest, latest_record, recorded_settings
 from agent_runner.runners.comparison import ComparisonRunner
 from agent_runner.runners.evaluated import EvaluatedRunner
 from agent_runner.runners.fresh import FreshRunner
@@ -37,11 +37,11 @@ def run(manifest: Path, resume: bool) -> None:
     if resume:
         if mode == 'workspaces':
             raise click.UsageError('workspaces mode does not support --continue')
-        manifests = sorted(base.glob('*/run.toml'))
-        if not manifests:
+        record = latest_record(base)
+        if record is None:
             raise click.ClickException(f'no run to continue under {base}')
-        log_root = manifests[-1].parent
-        saved = load_manifest(manifests[-1])
+        log_root = record.parent
+        saved = load_manifest(record)
         if settings['iterations'] < saved['iterations']:
             raise click.UsageError('agent.iterations cannot be less than the saved total')
         if any(value != saved.get(key) for key, value in settings.items()
@@ -60,11 +60,17 @@ def run(manifest: Path, resume: bool) -> None:
             depencity_version = version('depencity')
         except PackageNotFoundError:
             depencity_version = None
-        (log_root / 'metadata.json').write_text(json.dumps({
+        metadata = {
             'commit_hash': commit.stdout.strip() if commit.returncode == 0 else None,
             'depencity_version': depencity_version,
-        }, indent=2) + '\n')
-    save_manifest(log_root / 'run.toml', settings)
+        }
+    else:
+        previous = log_root / 'metadata.json'
+        metadata = json.loads(previous.read_text()) if previous.exists() else {}
+    metadata['settings'] = recorded_settings(settings, log_root)
+    pending = log_root / 'metadata.json.tmp'
+    pending.write_text(json.dumps(metadata, indent=2) + '\n')
+    pending.replace(log_root / 'metadata.json')
     click.echo(f'Run: {log_root}')
     repo = Path(settings['repo'])
     task, model, iterations = (settings[key] for key in ('task', 'model', 'iterations'))

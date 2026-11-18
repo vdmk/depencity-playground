@@ -12,7 +12,7 @@ acceptance policy. Paths are relative to the manifest directory; `target` and
 
 A Depencity worker runs cumulative iterations. A candidate is retained only when tests pass and the expression-path count decreases.
 Original fixtures stay untouched. Each worker uses a persistent `workspace/`;
-logs, candidate snapshots, diffs, evaluations, and resolved `run.toml` stay outside
+logs, candidate snapshots, diffs, evaluations, and run metadata stay outside
 it. Original tests are restored before Docker validation.
 
 To resume the latest run, increase `[agent].iterations` in the manifest if

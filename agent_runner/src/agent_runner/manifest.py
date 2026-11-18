@@ -1,6 +1,7 @@
-"""Read experiment definitions and write self-contained resolved TOML manifests."""
+"""Read experiment definitions and record effective run settings."""
 
 import json
+import os
 import tomllib
 from pathlib import Path
 
@@ -22,7 +23,10 @@ TABLES = {
 def load_manifest(path: Path) -> dict:
     """Resolve paths from the manifest directory, and evaluation paths from repo."""
     path = path.resolve()
-    data = tomllib.loads(path.read_text())
+    if path.name == 'metadata.json':
+        data = json.loads(path.read_text())['settings']
+    else:
+        data = tomllib.loads(path.read_text())
     unknown = data.keys() - {'name', 'mode', 'repo', 'log_root', 'task', 'task_file', 'branch_mode', 'variants', *TABLES}
     if unknown:
         raise click.UsageError(f'unknown manifest keys: {", ".join(sorted(unknown))}')
@@ -113,16 +117,24 @@ def load_manifest(path: Path) -> dict:
     return settings
 
 
-def save_manifest(path: Path, settings: dict) -> None:
-    """Save effective settings with absolute paths and the complete prompt text."""
-    lines = [f'{key} = {json.dumps(settings[key], ensure_ascii=False)}'
-             for key in ('name', 'mode', 'repo', 'log_root', 'task')]
-    for key in ('branch_mode', 'variants'):
-        if key in settings:
-            lines.append(f'{key} = {json.dumps(settings[key])}')
-    for table, fields in TABLES.items():
-        values = [f'{key} = {json.dumps(settings[key], ensure_ascii=False)}'
-                  for key in fields if key in settings]
+def recorded_settings(settings: dict, directory: Path) -> dict:
+    fields = {key for keys in TABLES.values() for key in keys}
+    record = {key: value for key, value in settings.items() if key not in fields}
+    for key in ('repo', 'log_root'):
+        record[key] = os.path.relpath(settings[key], directory)
+    for table, keys in TABLES.items():
+        values = {key: settings[key] for key in keys if key in settings}
         if values:
-            lines.extend(['', f'[{table}]', *values])
-    path.write_text('\n'.join(lines) + '\n')
+            record[table] = values
+    return record
+
+
+def latest_record(base: Path):
+    for directory in sorted(base.glob('*/'), reverse=True):
+        metadata = directory / 'metadata.json'
+        if metadata.is_file() and 'settings' in json.loads(metadata.read_text()):
+            return metadata
+        legacy = directory / 'run.toml'
+        if legacy.is_file():
+            return legacy
+    return None

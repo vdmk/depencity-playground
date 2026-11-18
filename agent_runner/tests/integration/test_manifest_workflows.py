@@ -3,7 +3,6 @@
 import json
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
 import pytest
@@ -49,16 +48,17 @@ def test_manifest_runs_from_another_directory_and_snapshots_prompt(tmp_path, mon
     result = CliRunner().invoke(main, ['run', str(manifest)])
     assert result.exit_code == 0, result.output
     run_dir, = (tmp_path / 'runs').iterdir()
-    saved = run_dir / 'run.toml'
-    record = tomllib.loads(saved.read_text())
+    saved = run_dir / 'metadata.json'
+    assert not (run_dir / 'run.toml').exists()
+    record = json.loads(saved.read_text())['settings']
     assert record['task'] == task
-    assert record['repo'] == str(repo)
-    assert record['log_root'] == str(tmp_path / 'runs')
+    assert (run_dir / record['repo']).resolve() == repo
+    assert record['log_root'] == '..'
     assert record['agent']['model'] == 'test-model'
     assert record['agent']['iterations'] == 1
     # The saved definition stays usable without its original task file.
     (definition / 'task.md').unlink()
-    saved.write_text(saved.read_text().replace('iterations = 1', 'iterations = 2'))
+    saved.write_text(saved.read_text().replace('"iterations": 1', '"iterations": 2'))
     result = CliRunner().invoke(main, ['run', str(saved), '--continue'])
     assert result.exit_code == 0, result.output
     assert calls == ['agent-01.1', 'agent-01.2']

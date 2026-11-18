@@ -15,7 +15,7 @@ from long_words import long_words
     ("cat dog fox", []),
     ("a bb ccc", ["ccc"]),
     ("the curious cat sleeps", ["curious", "sleeps"]),
-    ("a elephant elephant", ["elephant", "elephant"]),
+    ("an elephant elephant", ["elephant", "elephant"]),
     ("  a\tlonger\nword  ", ["longer", "word"]),
     ("hi there!", ["there!"]),
     ("é 猫猫 abc", ["abc"]),
@@ -25,13 +25,13 @@ def test_long_words(sentence, expected):
 
 
 def test_heavy(benchmark):
-    sentence = "a elephant " * 32_000
+    sentence = "an elephant " * 32_000
     result = benchmark(long_words, sentence)
     assert result == ["elephant"] * 32_000
 
 
 def test_memory(request):
-    sentence = "a elephant " * 32_000
+    sentence = "an elephant " * 32_000
     with TemporaryDirectory() as directory:
         capture = Path(directory) / "memory.bin"
         with memray.Tracker(capture, trace_python_allocators=True):

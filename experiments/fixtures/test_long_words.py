@@ -12,7 +12,7 @@ from long_words import long_words
     ("cat dog fox", []),
     ("a bb ccc", ["ccc"]),
     ("the curious cat sleeps", ["curious", "sleeps"]),
-    ("a elephant elephant", ["elephant", "elephant"]),
+    ("an elephant elephant", ["elephant", "elephant"]),
     ("  a\tlonger\nword  ", ["longer", "word"]),
     ("hi there!", ["there!"]),
     ("é 猫猫 abc", ["abc"]),

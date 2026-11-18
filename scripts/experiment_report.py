@@ -12,8 +12,17 @@ import tomllib
 from pathlib import Path
 
 
+def run_settings(run_dir):
+    metadata = run_dir / 'metadata.json'
+    if metadata.is_file():
+        settings = json.loads(metadata.read_text()).get('settings')
+        if settings is not None:
+            return settings
+    return tomllib.loads((run_dir / 'run.toml').read_text())
+
+
 def read_experiment(run_dir):
-    manifest = tomllib.loads((run_dir / 'run.toml').read_text())
+    manifest = run_settings(run_dir)
     config = {key: value for key, value in manifest.items() if not isinstance(value, dict)}
     for table in ('agent', 'evaluation'):
         config.update(manifest.get(table, {}))
@@ -25,6 +34,11 @@ def read_experiment(run_dir):
         if profile_path.exists():
             report['after'] = json.loads(profile_path.read_text())
         prefix = path.name.removesuffix('.evaluation.json')
+        summary_path = path.with_name(f'{prefix}.summary.json')
+        if summary_path.is_file():
+            summary = json.loads(summary_path.read_text()).get('short_summary')
+            if isinstance(summary, str) and summary.strip():
+                report['short_summary'] = summary
         before_path = path.with_name(f'{prefix}.before.py')
         candidate_path = path.with_name(f'{prefix}.candidate.py')
         if before_path.exists() and candidate_path.exists():
@@ -66,7 +80,7 @@ def render(run_dir, config, rows):
 TEMPLATE = r'''<!doctype html>
 <html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Experiment report · __TITLE__</title>
+<title>Experiment report (__TITLE__)</title>
 <style>
 :root{font:16px system-ui,sans-serif;color:#17243a;background:#f3f6fa}
 body{max-width:1180px;margin:40px auto;padding:0 24px}h1{font-size:30px;margin-bottom:8px}
@@ -90,7 +104,7 @@ width:12px;height:12px;border-radius:50%;margin-right:7px}.task{max-width:78ch;l
 <label><input type="checkbox" id="retained" checked>Show retained values</label>
 <p class="muted">Click a point to view code changes.</p>
 <div id="legend" class="legend"></div><div id="charts"></div></section>
-<section id="code-changes"><h2>Code changes</h2><label>Variant <select id="code-variant"></select></label><button id="code-prev" type="button">Previous</button> <label>Iteration <select id="code-iteration"></select></label><button id="code-next" type="button">Next</button><p id="code-status" class="muted"></p><p class="muted">Before appears on the left; the candidate appears on the right. Red marks removed or replaced lines; green marks added or replaced lines. Rejected candidates are shown before rollback.</p><details open><summary>Metric changes</summary><p class="muted">Changed metrics with recorded before and candidate values. Change is candidate minus before. Signs indicate direction, not whether a change is better.</p><div class="table-wrap metric-deltas"><table><thead><tr><th>Metric</th><th>Before</th><th>Candidate</th><th>Change</th><th>Change %</th></tr></thead><tbody id="code-metrics"></tbody></table></div></details><div id="code-view" class="code-scroll"></div></section>
+<section id="code-changes"><h2>Code changes</h2><label>Variant <select id="code-variant"></select></label><button id="code-prev" type="button">Previous</button> <label>Iteration <select id="code-iteration"></select></label><button id="code-next" type="button">Next</button><p id="code-status" class="muted"></p><p id="agent-summary" hidden><strong>Agent summary</strong><br> <span id="summary-text"></span></p><details open><summary>Metric changes</summary><div class="table-wrap metric-deltas"><table><thead><tr><th>Metric</th><th>Before</th><th>Candidate</th><th>Change</th><th>Change %</th></tr></thead><tbody id="code-metrics"></tbody></table></div></details><div id="code-view" class="code-scroll"></div></section>
 <section><h2>Experiment</h2><ul id="metadata"></ul><h3>Agent prompt</h3><div id="task" class="task"></div></section>
 <script id="data" type="application/json">__DATA__</script>
 <script>
@@ -103,7 +117,7 @@ const el=id=>document.getElementById(id);
 const fmt=v=>v==null?'—':v.toLocaleString('en-US',{maximumFractionDigits:3});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
-el('description').textContent=`${variants.length} variants · ${rows.length} recorded iterations · ${config.target||''}`;
+el('description').textContent=`${variants.length} variants, ${rows.length} recorded iterations${config.target?' for '+config.target:''}`;
 const metadata=[
  ['Experiment',config.name||'unspecified'],
  ['Mode',config.mode||'unspecified'],
@@ -128,9 +142,12 @@ promptParagraphs.filter(Boolean).forEach(block=>{
   el('task').append(paragraph);
  }
 });
-metrics.filter(m=>rows.some(r=>finite(r.before?.[m])||finite(r.after?.[m]))).forEach((m,i)=>{
+const availableMetrics=metrics.filter(m=>rows.some(r=>finite(r.before?.[m])||finite(r.after?.[m])));
+const defaultMetrics=new Set(availableMetrics.filter(m=>config.metrics?.includes(m)));
+if(!defaultMetrics.size)defaultMetrics.add(availableMetrics[0]);
+availableMetrics.forEach(m=>{
  const label=document.createElement('label'),input=document.createElement('input');
- input.type='checkbox';input.value=m;input.checked=i===0;input.addEventListener('change',draw);
+ input.type='checkbox';input.value=m;input.checked=defaultMetrics.has(m);input.addEventListener('change',draw);
  label.append(input,document.createTextNode(m));el('metrics').append(label);
 });
 el('legend').innerHTML=variants.map((v,i)=>`<span><i class="swatch" style="background:${colors[i%colors.length]}"></i>${esc(v)}</span>`).join('');
@@ -138,7 +155,7 @@ variants.forEach(variant=>{const option=document.createElement('option');option.
 function listCodeIterations(){
  el('code-iteration').replaceChildren();
  rows.filter(row=>row.variant===el('code-variant').value).forEach(row=>{
-  const option=document.createElement('option');option.value=row.iteration;option.textContent=`${row.iteration} · ${row.status}`;el('code-iteration').append(option);
+  const option=document.createElement('option');option.value=row.iteration;option.textContent=`${row.iteration} (${row.status})`;el('code-iteration').append(option);
  });
  drawCode();
 }
@@ -166,7 +183,9 @@ function drawCode(){
  const row=rows.find(row=>row.variant===el('code-variant').value&&row.iteration===Number(select.value));
  el('code-prev').disabled=select.selectedIndex<=0;
  el('code-next').disabled=select.selectedIndex>=select.options.length-1;
- el('code-status').textContent=row?`${row.variant} · iteration ${row.iteration} · ${row.status}`:'';
+ el('code-status').textContent=row?`${row.variant}, iteration ${row.iteration} (${row.status})`:'';
+ el('summary-text').textContent=row?.short_summary||'';
+ el('agent-summary').hidden=!row?.short_summary;
  const signed=value=>`${value>0?'+':''}${fmt(value)}`;
  el('code-metrics').innerHTML=row?metrics.filter(metric=>{
   const before=row.before?.[metric],after=row.after?.[metric];
@@ -244,7 +263,7 @@ function drawMetric(metric,panel){
   });
   svg+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>`;
   s.points.filter(p=>finite(p.value)).forEach(p=>{
-   const title=`${s.name} · iteration ${p.iteration} · ${retained?'retained':'candidate'} ${fmt(p.value)} · ${p.status}`;
+   const title=`${s.name}, iteration ${p.iteration}, ${retained?'retained':'candidate'} ${fmt(p.value)}, ${p.status}`;
    svg+=`<circle data-chart-point data-variant="${esc(s.name)}" data-iteration="${p.iteration}" ${p.iteration>0?'role="button" aria-pressed="false" style="cursor:pointer"':''} cx="${x(p.iteration)}" cy="${y(p.value)}" r="5" stroke="${s.color}" stroke-width="2"
     fill="${p.status==='accepted'||p.status==='baseline'?s.color:'white'}" tabindex="0" aria-label="${esc(title)}"><title>${esc(title)}</title></circle>`;
    if(el('labels').checked)svg+=`<text x="${x(p.iteration)}" y="${y(p.value)-12}" text-anchor="middle" font-size="11" fill="${s.color}">${fmt(p.value)}</text>`;

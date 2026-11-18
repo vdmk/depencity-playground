@@ -87,17 +87,16 @@ failures stop the affected worker.
 
 ## Run records and resume
 
-Each execution creates `log_root/<timestamp>-<pid>/run.toml`. This resolved
-manifest saves every effective setting, absolute repository and log-root paths,
-and the complete prompt text. It does not depend on the original prompt file.
-Logs, summaries, candidate snapshots, diffs, and evaluations sit beside it.
-These are execution records, not a sanitized publication bundle.
+Each execution saves its effective settings, complete prompt, repository commit and
+Depencity version in `log_root/<timestamp>-<pid>/metadata.json`. Repository
+and log-root paths are relative to the record directory. Older runs with a
+resolved `run.toml` remain readable.
 
 Use the same experiment manifest with `--continue` to resume the latest run under
 its `log_root`. Increase `agent.iterations` to extend the total; it cannot be
 reduced. Only iterations and `evaluation.reject_if_not_improved` may change when continuing.
 Other effective settings, including prompt contents, must match. Alternatively,
-pass a saved `run.toml` itself to reuse its resolved settings.
+pass a saved `metadata.json` itself to reuse its resolved settings.
 
 Evaluated runs replay accepted/rejected checkpoints and retry interrupted or
 agent-failed iterations. In-place runs retain current files and skip iterations

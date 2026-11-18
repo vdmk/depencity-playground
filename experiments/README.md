@@ -21,7 +21,7 @@ The internal attempt count remains a prompt instruction, not a harness-enforced
 budget.
 
 Each manifest specifies its output directory under `out/experiments/`, including
-a resolved `run.toml`. Existing experiment names and output paths are preserved.
+effective settings in `metadata.json`. Existing experiment names and output paths are preserved.
 Use `--continue` with the same manifest to resume; edit `agent.iterations` to
 increase the total. See the [runner documentation](../agent_runner/README.md)
 for the complete schema and resume rules.

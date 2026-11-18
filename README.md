@@ -18,7 +18,7 @@ uv run agent-runner run experiments/path-expressions/strict-target-10/experiment
 ```
 
 Settings live in the manifest. Relative paths resolve from its directory.
-Every execution saves a resolved `run.toml`, transcripts, diffs, test output,
+Every execution saves effective settings in `metadata.json`, transcripts, diffs, test output,
 and evaluations under `out/experiments/`. Resume the latest run with the same
 manifest and `--continue`. Historical CLI-argument runs live under
 `out/archive/experiments/` and remain unchanged.

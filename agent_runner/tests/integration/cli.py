@@ -2,12 +2,12 @@
 
 import json
 import tempfile
-import tomllib
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from agent_runner.runner import main
+from agent_runner.manifest import latest_record, load_manifest
 
 
 TABLES = {
@@ -24,13 +24,9 @@ def invoke_manifest(settings):
         settings['log_root'] = str((repo / settings['log_root']).resolve())
     saved = {}
     if resume:
-        manifests = sorted(Path(settings['log_root']).glob('*/run.toml'))
-        if manifests:
-            data = tomllib.loads(manifests[-1].read_text())
-            saved = {key: value for key, value in data.items() if key not in TABLES}
-            for table, fields in TABLES.items():
-                saved.update({key: data[table][key] for key in fields
-                              if key in data.get(table, {})})
+        record = latest_record(Path(settings['log_root']))
+        if record:
+            saved = load_manifest(record)
     settings = {'name': 'integration-test', **saved, **settings}
     settings.setdefault('repo', str(repo))
     settings['repo'] = str(Path(settings['repo']).resolve())
