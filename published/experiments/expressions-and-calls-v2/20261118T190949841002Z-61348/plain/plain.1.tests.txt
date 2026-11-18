@@ -1,0 +1,15 @@
+...........------------------------------ memory: long_words ------------------------------
+Test                     Peak bytes    Allocations at peak
+test_memory               2,409,248                 32,005
+.                                                                        [100%]
+
+-------------------------------------------- benchmark: 1 tests --------------------------------------------
+Name (time in ms)        Min     Max    Mean  StdDev  Median     IQR  Outliers       OPS  Rounds  Iterations
+------------------------------------------------------------------------------------------------------------
+test_heavy            3.1294  8.7458  3.3114  0.3937  3.2439  0.0792     15;26  301.9850     270           1
+------------------------------------------------------------------------------------------------------------
+
+Legend:
+  Outliers: 1 Standard Deviation from Mean; 1.5 IQR (InterQuartile Range) from 1st Quartile and 3rd Quartile.
+  OPS: Operations Per Second, computed as 1 / Mean
+12 passed in 0.93s

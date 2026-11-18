@@ -1,0 +1,14 @@
+--- before/long_words.py
++++ candidate/long_words.py
+@@ -6,9 +6,5 @@
+     words = sentence.split()
+     word_count = len(words)
+     total_word_length = sum(map(len, words))
+-    word_count = total_word_length // (word_count or 1)
+-    return [
+-        word
+-        for word in words
+-        if len(word) > word_count
+-    ]
++    average_length = total_word_length // (word_count or 1)
++    return [word for word in words if len(word) > average_length]

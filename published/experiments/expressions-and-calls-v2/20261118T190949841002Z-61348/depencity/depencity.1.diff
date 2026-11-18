@@ -1,0 +1,19 @@
+--- before/long_words.py
++++ candidate/long_words.py
+@@ -7,13 +7,6 @@
+     if not words:
+         return []
+ 
+-    total_length = 0
+-    for word in words:
+-        total_length += len(word)
+-    average_length = total_length / len(words)
+-
+-    result = []
+-    for word in words:
+-        if len(word) > average_length:
+-            result.append(word)
+-    return result
++    word_count = len(words)
++    total_length = sum(map(len, words))
++    return [word for word in words if len(word) * word_count > total_length]

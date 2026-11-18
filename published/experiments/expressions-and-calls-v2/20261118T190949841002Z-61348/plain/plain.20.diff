@@ -1,0 +1,22 @@
+--- before/long_words.py
++++ candidate/long_words.py
+@@ -7,13 +7,13 @@
+     if not words:
+         return []
+ 
+-    word_count = len(words)
++    count = len(words)
+     total_length = sum(map(len, words))
+-    write_index = 0
++    result_count = 0
+     for word in words:
+         word_length = len(word)
+-        if word_length * word_count > total_length:
+-            words[write_index] = word
+-            write_index += 1
+-    del words[write_index:]
++        if word_length * count > total_length:
++            words[result_count] = word
++            result_count += 1
++    del words[result_count:]
+     return words

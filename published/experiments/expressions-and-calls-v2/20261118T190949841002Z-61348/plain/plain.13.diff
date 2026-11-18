@@ -1,0 +1,11 @@
+--- before/long_words.py
++++ candidate/long_words.py
+@@ -4,7 +4,7 @@
+ def long_words(sentence: str) -> list[str]:
+     """Split on whitespace and preserve punctuation, order, and duplicates."""
+     words = sentence.split()
+-    if len(words) == 0:
++    if not words:
+         return []
+ 
+     average_length = sum(map(len, words)) / len(words)

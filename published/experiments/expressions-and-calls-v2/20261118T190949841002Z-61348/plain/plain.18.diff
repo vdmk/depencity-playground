@@ -1,0 +1,12 @@
+--- before/long_words.py
++++ candidate/long_words.py
+@@ -10,7 +10,8 @@
+     average_length = sum(map(len, words)) / len(words)
+     write_index = 0
+     for word in words:
+-        if len(word) > average_length:
++        word_length = len(word)
++        if word_length > average_length:
+             words[write_index] = word
+             write_index += 1
+     del words[write_index:]
