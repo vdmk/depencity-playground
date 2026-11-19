@@ -88,6 +88,15 @@ def load_manifest(path: Path) -> dict:
         settings['task'] = (path.parent / data['task_file']).read_text()
         if not settings['task'].strip():
             raise click.UsageError('task_file must contain a task')
+    _resolve_build_paths(settings, path)
+    repo = Path(settings['repo'])
+    if mode == 'evaluated':
+        _resolve_evaluation_paths(settings, repo)
+    return settings
+
+
+def _resolve_build_paths(settings: dict, path: Path) -> None:
+    """Resolve repository and Docker paths and validate the Dockerfile."""
     for key in ('build_root', 'dockerfile'):
         if key not in settings:
             raise click.UsageError(f'manifest requires {key}')
@@ -101,28 +110,30 @@ def load_manifest(path: Path) -> dict:
     if not dockerfile.is_relative_to(build_root) or not dockerfile.is_file():
         raise click.UsageError('dockerfile must be an existing file inside build_root')
     settings['dockerfile'] = str(dockerfile.relative_to(build_root))
-    if mode == 'evaluated':
-        for key in ('target', 'test_script'):
-            if not isinstance(settings.get(key), str) or not settings[key].strip():
-                raise click.UsageError('evaluation requires target and test_script')
-            source = (repo / settings[key]).resolve()
-            try:
-                settings[key] = str(source.relative_to(repo))
-            except ValueError as error:
-                raise click.UsageError(f'evaluation.{key} must be inside repo') from error
-            if not source.is_file():
-                raise click.UsageError(f'evaluation.{key} is not a file: {source}')
-        if settings['target'] == settings['test_script']:
-            raise click.UsageError('evaluation.target and test_script must be different files')
-        metrics = settings['metrics']
-        if (not isinstance(metrics, list) or not metrics
-                or any(not isinstance(metric, str) or not metric.strip() for metric in metrics)
-                or len(set(metrics)) != len(metrics)):
-            raise click.UsageError('evaluation.metrics must be a nonempty array of unique metric names')
-        if (settings['reject_if_not_improved'] is not False
-                and settings['reject_if_not_improved'] not in ('all', 'depencity')):
-            raise click.UsageError('evaluation.reject_if_not_improved must be false, depencity, or all')
-    return settings
+
+
+def _resolve_evaluation_paths(settings: dict, repo: Path) -> None:
+    """Resolve evaluation files and validate evaluation-only settings."""
+    for key in ('target', 'test_script'):
+        if not isinstance(settings.get(key), str) or not settings[key].strip():
+            raise click.UsageError('evaluation requires target and test_script')
+        source = (repo / settings[key]).resolve()
+        try:
+            settings[key] = str(source.relative_to(repo))
+        except ValueError as error:
+            raise click.UsageError(f'evaluation.{key} must be inside repo') from error
+        if not source.is_file():
+            raise click.UsageError(f'evaluation.{key} is not a file: {source}')
+    if settings['target'] == settings['test_script']:
+        raise click.UsageError('evaluation.target and test_script must be different files')
+    metrics = settings['metrics']
+    if (not isinstance(metrics, list) or not metrics
+            or any(not isinstance(metric, str) or not metric.strip() for metric in metrics)
+            or len(set(metrics)) != len(metrics)):
+        raise click.UsageError('evaluation.metrics must be a nonempty array of unique metric names')
+    if (settings['reject_if_not_improved'] is not False
+            and settings['reject_if_not_improved'] not in ('all', 'depencity')):
+        raise click.UsageError('evaluation.reject_if_not_improved must be false, depencity, or all')
 
 
 def recorded_settings(settings: dict, directory: Path) -> dict:
