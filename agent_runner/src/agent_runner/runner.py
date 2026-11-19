@@ -72,6 +72,12 @@ def run(manifest: Path, resume: bool) -> None:
     pending.write_text(json.dumps(metadata, indent=2) + '\n')
     pending.replace(log_root / 'metadata.json')
     click.echo(f'Run: {log_root}')
+    if not _run_configured(settings, log_root, resume, mode):
+        raise click.exceptions.Exit(1)
+
+
+def _run_configured(settings, log_root, resume, mode) -> bool:
+    """Build and execute the runner selected by the resolved settings."""
     repo = Path(settings['repo'])
     docker_options = dict(build_root=Path(settings['build_root']), dockerfile=settings['dockerfile'])
     task, model, iterations = (settings[key] for key in ('task', 'model', 'iterations'))
@@ -96,8 +102,7 @@ def run(manifest: Path, resume: bool) -> None:
             runner = runner_class(codex, repo, settings['workers'], task, iterations, log_root.name)
         else:
             runner = InPlaceRunner(codex, repo, task, iterations, resume=resume)
-    if not runner.run():
-        raise click.exceptions.Exit(1)
+    return runner.run()
 
 
 if __name__ == '__main__':
