@@ -21,7 +21,8 @@ class Branch:
         if not run_git(self.work_dir, 'status', '--porcelain'):
             return
         run_git(self.work_dir, 'add', '--all')
-        message = f'auto-refactor: {message}'
+        subject, _, _ = message.partition('\n')
+        message = f'auto-refactor: {subject}'
         run_git(self.work_dir, 'commit', '-m', message)
         click.echo(f'Committed changes: {message}')
 

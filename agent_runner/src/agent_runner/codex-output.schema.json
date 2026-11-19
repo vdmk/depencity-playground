@@ -2,11 +2,17 @@
   "type": "object",
   "properties": {
     "short_summary": {
-      "type": "string"
+      "type": "string",
+      "description": "One concise imperative commit subject, without prefix or commentary."
+    },
+    "report": {
+      "type": "string",
+      "description": "Measurements, tradeoffs and validation results."
     }
   },
   "required": [
-    "short_summary"
+    "short_summary",
+    "report"
   ],
   "additionalProperties": false
 }
