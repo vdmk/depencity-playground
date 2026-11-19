@@ -11,6 +11,8 @@ from click.testing import CliRunner
 from agent_runner.codex import Codex, CodexResult
 from agent_runner.runner import main
 
+from .cli import invoke_manifest
+
 
 PROJECT = Path(__file__).resolve().parents[3]
 
@@ -20,6 +22,7 @@ def test_manifest_runs_from_another_directory_and_snapshots_prompt(tmp_path, mon
     definition.mkdir()
     repo = tmp_path / 'project with spaces'
     repo.mkdir()
+    (repo / 'Dockerfile').touch()
     elsewhere = tmp_path / 'elsewhere'
     elsewhere.mkdir()
     task = 'Simplify the "parser".\nKeep Unicode: λ.\n'
@@ -27,6 +30,8 @@ def test_manifest_runs_from_another_directory_and_snapshots_prompt(tmp_path, mon
     manifest = definition / 'experiment.toml'
     manifest.write_text(
         'name = "parser-search"\n'
+        'build_root = "../project with spaces"\n'
+        'dockerfile = "Dockerfile"\n'
         'repo = "../project with spaces"\n'
         'log_root = "../runs"\n'
         'task_file = "task.md"\n'
@@ -69,6 +74,18 @@ def test_manifest_runs_from_another_directory_and_snapshots_prompt(tmp_path, mon
     assert calls == ['agent-01.1', 'agent-01.2']
 
 
+@pytest.mark.parametrize('missing', ['build_root', 'dockerfile'])
+def test_manifest_requires_docker_settings(tmp_path, missing):
+    settings = {
+        'build_root': str(PROJECT),
+        'dockerfile': 'docker/test/Dockerfile',
+        'repo': str(tmp_path), 'log_root': 'runs'}
+    del settings[missing]
+    result = invoke_manifest(settings)
+    assert result.exit_code == 2
+    assert f'manifest requires {missing}' in result.output
+
+
 @pytest.mark.parametrize('body, message', [
     ('log_rooot = "runs"', 'unknown manifest keys'),
     *[(f'log_root = "runs"\nmode = "evaluated"\n[evaluation]\n'
@@ -97,7 +114,7 @@ def test_invalid_manifests_fail_before_execution(tmp_path, monkeypatch, body, me
     (tmp_path / 'target.py').write_text('value = 1\n')
     (tmp_path / 'test_target.py').write_text('pass\n')
     manifest = tmp_path / 'experiment.toml'
-    manifest.write_text(body + '\n')
+    manifest.write_text(f'build_root = {json.dumps(str(PROJECT))}\ndockerfile = "docker/test/Dockerfile"\n' + body + '\n')
 
     def unexpected(*args):
         pytest.fail('invalid experiments must not launch an agent')

@@ -65,7 +65,7 @@ def test_plain_worker_uses_docker_without_profiler(tmp_path, monkeypatch):
     _write_codex(codex, '#!/bin/sh\nprintf "%s\\n" "$@" > "$CODEX_ARGUMENTS"\n')
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
-    result = codex_execution.Codex('model', tmp_path, with_depencity=False).run(
+    result = codex_execution.Codex('model', tmp_path, build_root=tmp_path, dockerfile='Dockerfile', with_depencity=False).run(
         'plain.1', tmp_path, 'simplify',
     )
     assert result.return_code == 0
@@ -98,7 +98,10 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 3, 'iterations': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 3, 'iterations': 2})
 
     assert result.exit_code == 1, result.output
     output = result.output
@@ -171,7 +174,10 @@ def test_runner_relaunches_codex_with_indexed_logs(tmp_path, monkeypatch):
     ('iterations', 1001),
 ])
 def test_parallel_rejects_invalid_worker_and_iteration_limits(tmp_path, option, value):
-    result = invoke_manifest({'mode': 'workspaces', 'repo': str(tmp_path), 'log_root': 'logs', option: value})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'repo': str(tmp_path), 'log_root': 'logs', option: value})
 
     assert result.exit_code == 2
     assert f'agent.{option} must be an integer' in result.output
@@ -190,7 +196,10 @@ def test_runner_passes_same_task_to_all_workers(tmp_path, monkeypatch):
     monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: '/codex')
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
 
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 7})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 7})
 
     assert result.exit_code == 1
     assert len(tasks) == 7
@@ -217,7 +226,10 @@ def test_runner_uses_checked_out_commit_as_worktree_base(tmp_path, monkeypatch):
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1})
 
     assert result.exit_code == 1, result.output
     assert (capture_dir / 'review-base-seen').exists()
@@ -248,7 +260,10 @@ def test_runner_uses_latest_starting_branch_tip_for_later_iterations(tmp_path, m
     monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: '/codex')
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
 
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1, 'iterations': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1, 'iterations': 2})
 
     assert result.exit_code == 1, result.output
     assert len(worktrees) == 2
@@ -276,7 +291,10 @@ def test_runner_retires_failed_agents_and_relaunches_remaining_agents(tmp_path, 
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2, 'iterations': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2, 'iterations': 2})
 
     assert result.exit_code == 1
     assert 'agent-01.1: finished with return code 1' in result.output
@@ -324,7 +342,10 @@ def test_agents_relaunch_independently(tmp_path, monkeypatch):
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2, 'iterations': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2, 'iterations': 2})
 
     assert result.exit_code == 1, result.output
     assert (capture_dir / 'agent-02-ran-first').exists()
@@ -347,7 +368,7 @@ def test_runner_stops_relaunching_after_first_interrupt(tmp_path, monkeypatch):
     monkeypatch.setattr(agent_runner.Codex, 'run', interrupt_agent)
 
     assert agent_runner.InPlaceRunner(
-        agent_runner.Codex('model', tmp_path), repo, 'task', 1,
+        agent_runner.Codex('model', tmp_path, build_root=tmp_path, dockerfile='Dockerfile'), repo, 'task', 1,
     ).run()
     assert calls == ['agent-01']
 
@@ -358,7 +379,10 @@ def test_runner_retires_agents_that_cannot_start(tmp_path, monkeypatch):
     missing_codex = tmp_path / 'missing-codex'
     monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: str(missing_codex))
 
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2})
 
     assert result.exit_code == 1
     assert 'agent-01: stopped after runner error (' in result.output
@@ -386,7 +410,10 @@ def test_runner_continues_when_one_agent_cannot_create_worktree(tmp_path, monkey
     monkeypatch.setattr(worker_git, 'create_worktree', create_agent_worktree)
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
 
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2})
 
     assert result.exit_code == 1
     assert 'agent-01: stopped after runner error (worktree unavailable)' in result.output
@@ -398,7 +425,10 @@ def test_runner_requires_a_clean_repository(tmp_path):
     _create_repository(repo)
     (repo / 'uncommitted.py').write_text('changed = True\n')
 
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo)})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo)})
 
     assert result.exit_code == 1
     assert 'repository must be clean' in result.output
@@ -421,7 +451,10 @@ def test_sequential_turns_build_commit_chain_in_target_repository(tmp_path, monk
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
 
-    result = invoke_manifest({'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'iterations': 3, 'task': 'Refactor module.py.'})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'iterations': 3, 'task': 'Refactor module.py.'})
 
     assert result.exit_code == 0, result.output
     assert not (repo / '.worktrees').exists()
@@ -444,7 +477,10 @@ def test_sequential_stops_and_preserves_failed_turn(tmp_path, monkeypatch, failu
 
     monkeypatch.setattr(codex_execution.shutil, 'which', lambda _name: 'codex')
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
-    result = invoke_manifest({'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'iterations': 3})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'iterations': 3})
 
     assert result.exit_code == (1 if failure == 'nonzero' else 0), result.output
     assert calls == ([1] if failure == 'nonzero' else [1, 2, 3])
@@ -462,7 +498,10 @@ def test_parallel_single_worker_uses_independent_branches(tmp_path, monkeypatch)
         return codex_execution.CodexResult(0, 'simplify calculator parsing')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1, 'iterations': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1, 'iterations': 2})
     assert result.exit_code == 0, result.output
     assert len(set(workspaces)) == 2
     assert all(path != repo and not path.exists() for path in workspaces)
@@ -477,7 +516,10 @@ def test_single_worker_without_git_works_outside_git(tmp_path, monkeypatch):
         return codex_execution.CodexResult(0, 'simplify calculator parsing')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
-    result = invoke_manifest({'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(tmp_path), 'task': 'Do the task'})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(tmp_path), 'task': 'Do the task'})
     assert result.exit_code == 0, result.output
     assert workspaces == [tmp_path]
     assert not (tmp_path / '.worktrees').exists()
@@ -516,7 +558,10 @@ def test_runner_uses_configured_log_root(tmp_path, monkeypatch, relative):
         return codex_execution.CodexResult(0, 'simplify calculator parsing')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
-    result = invoke_manifest({'mode': 'in-place', 'repo': str(repo), 'log_root': 'custom-logs' if relative else str(log_root)})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'in-place', 'repo': str(repo), 'log_root': 'custom-logs' if relative else str(log_root)})
     assert result.exit_code == 0, result.output
     log_dir, iteration_name = captured[0]
     assert log_dir.parent == log_root
@@ -545,7 +590,10 @@ def test_runner_commits_with_summary_only_when_worktrees_enabled(tmp_path, monke
     )
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
-    arguments = {'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(repo)}
+    arguments = {
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(repo)}
     if use_git:
         arguments['mode'] = 'workspaces'
         arguments.update({'workers': 1, 'iterations': 2})
@@ -585,7 +633,10 @@ def test_runner_preserves_uncommitted_work_on_missing_summary_or_failure(tmp_pat
     )
     codex.chmod(0o755)
     monkeypatch.setenv('PATH', f'{tmp_path}:{os.environ["PATH"]}')
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1, 'iterations': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1, 'iterations': 2})
     assert result.exit_code == 1, result.output
     workspace, = (repo / '.worktrees').rglob('iteration-*')
     assert (workspace / 'module.py').read_text() == 'unfinished = True\n'
@@ -599,7 +650,10 @@ def test_sequential_rejects_concurrent_workers(tmp_path, monkeypatch):
         pytest.fail('workers must not start without Git isolation')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', unexpected_run)
-    result = invoke_manifest({'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(tmp_path), 'workers': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'in-place', 'log_root': 'agent-runner-files/logs', 'repo': str(tmp_path), 'workers': 2})
     assert result.exit_code == 2
     assert 'agent.workers requires workspaces mode' in result.output
     assert not (tmp_path / 'agent-runner-files').exists()
@@ -607,7 +661,10 @@ def test_sequential_rejects_concurrent_workers(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('mode', ['in-place', 'workspaces'])
 def test_log_root_is_required(mode, tmp_path):
-    result = invoke_manifest({'mode': mode, 'repo': str(tmp_path)})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': mode, 'repo': str(tmp_path)})
     assert result.exit_code == 2
     assert 'manifest requires log_root' in result.output
     assert not list(tmp_path.iterdir())
@@ -632,7 +689,10 @@ def test_branch_modes_control_workspace_reuse_and_commit_ancestry(tmp_path, monk
         return codex_execution.CodexResult(0, f'improve {name} iteration {iteration}')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2, 'iterations': 3, 'branch_mode': branch_mode})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 2, 'iterations': 3, 'branch_mode': branch_mode})
     assert result.exit_code == 0, result.output
     branches = _run_git(repo, 'for-each-ref', '--format=%(refname)', 'refs/heads/codex-batch').splitlines()
     expected_branches, expected_commits = (6, 1) if branch_mode == 'fresh' else (2, 3)
@@ -666,7 +726,10 @@ def test_incremental_failure_keeps_prior_commit_and_uncommitted_edits(tmp_path, 
         return codex_execution.CodexResult(1, '')
 
     monkeypatch.setattr(agent_runner.Codex, 'run', run_agent)
-    result = invoke_manifest({'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1, 'iterations': 3, 'branch_mode': 'incremental'})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'workspaces', 'log_root': 'agent-runner-files/logs', 'repo': str(repo), 'workers': 1, 'iterations': 3, 'branch_mode': 'incremental'})
     assert result.exit_code == 1, result.output
     assert len(calls) == 2
     workspace = calls[0][1]

@@ -35,7 +35,10 @@ class Snapshot:
 class Evaluator:
     """Evaluate one Python file using Depencity and a pytest script."""
 
-    def __init__(self, repo, target, metrics, test_script, reject_if_not_improved):
+    def __init__(self, repo, target, metrics, test_script, reject_if_not_improved,
+                 build_root, dockerfile):
+        self.build_root = build_root
+        self.dockerfile = build_root / dockerfile
         self.repo = repo
         self.target = checked_workspace_path(repo, target)
         self.metrics = metrics
@@ -84,10 +87,8 @@ class Evaluator:
             test_return_code = None
             status = 'agent_failed'
             if agent_return_code == 0:
-                build_root = Path(__file__).resolve().parents[3]
                 tests = json.loads(_docker(
-                    str(self.test_script), self.repo, build_root,
-                    build_root / 'docker/test/Dockerfile',
+                    str(self.test_script), self.repo, self.build_root, self.dockerfile,
                     shlex.join(['python', '-m', 'pytest', '-q', str(self.test_script),
                                 '-p', 'no:cacheprovider']),
                 ))

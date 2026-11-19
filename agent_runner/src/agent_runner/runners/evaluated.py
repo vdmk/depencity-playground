@@ -26,6 +26,7 @@ class EvaluatedRunner(InPlaceRunner):
         self.evaluator = Evaluator(
             workspace, target, metrics, test_script,
             reject_if_not_improved=reject_if_not_improved,
+            build_root=codex.build_root, dockerfile=codex.dockerfile,
         )
         self.task += f' Target: {target}. Tests: {test_script}.'
 

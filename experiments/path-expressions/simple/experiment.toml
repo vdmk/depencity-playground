@@ -2,6 +2,8 @@ name = "path-expressions"
 mode = "evaluated"
 variants = ["depencity", "plain"]
 repo = "../../fixtures"
+build_root = "../../.."
+dockerfile = "docker/test/Dockerfile"
 log_root = "../../../out/experiments/path-expressions"
 task_file = "task.md"
 

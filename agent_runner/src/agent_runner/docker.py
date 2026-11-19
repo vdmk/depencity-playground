@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 
-DEFAULT_BUILD_IMAGE = 'complexity-test:local'
+DEFAULT_BUILD_IMAGE = 'depencity-test:local'
 
 
 def docker_command(

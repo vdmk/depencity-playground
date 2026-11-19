@@ -13,14 +13,15 @@ VARIANTS = ('plain', 'depencity')
 
 class ComparisonRunner(Runner):
     def __init__(self, repo, log_root, task, model, iterations, target, metrics,
-                 test_script, resume, reject_if_not_improved, variants=VARIANTS):
+                 test_script, resume, reject_if_not_improved, build_root, dockerfile, variants=VARIANTS):
         super().__init__(None, repo, len(variants), task, iterations)
         self.variant_names = tuple(variants)
         self.variants = {}
         for variant in self.variant_names:
             directory = log_root / variant
             directory.mkdir(parents=True, exist_ok=True)
-            codex = Codex(model, directory, with_depencity=variant == 'depencity')
+            codex = Codex(model, directory, with_depencity=variant == 'depencity',
+                          build_root=build_root, dockerfile=dockerfile)
             self.variants[variant] = EvaluatedRunner(
                 codex, repo, task, iterations, target, metrics, test_script,
                 workspace=directory / 'workspace',

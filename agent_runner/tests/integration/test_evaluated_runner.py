@@ -46,7 +46,10 @@ def prepare(tmp_path):
         '    assert runpy.run_path("target.py")["value"] == 3\n'
     )
     logs = tmp_path / 'evaluation logs'
-    arguments = {'mode': 'evaluated', 'repo': str(repo), 'log_root': str(logs), 'target': 'target.py', 'test_script': 'test_target.py', 'iterations': 3}
+    arguments = {
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'evaluated', 'repo': str(repo), 'log_root': str(logs), 'target': 'target.py', 'test_script': 'test_target.py', 'iterations': 3}
     return repo, logs, arguments
 
 
@@ -161,7 +164,10 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
         (2, {'reject_if_not_improved': 'depencity'}), (3, {}),
         (4, {'reject_if_not_improved': False}),
     ]:
-        result = invoke_manifest({'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True, 'iterations': total, **flags})
+        result = invoke_manifest({
+            'build_root': str(Path(__file__).resolve().parents[3]),
+            'dockerfile': 'docker/test/Dockerfile',
+            'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True, 'iterations': total, **flags})
         assert result.exit_code == 0, result.output
         for variant in ('plain', 'depencity'):
             filtered = variant == 'depencity' and total != 4
@@ -175,7 +181,10 @@ def test_comparison_can_enable_filter_when_continuing(tmp_path, monkeypatch):
 
 
 def test_improvement_filter_requires_evaluation(tmp_path):
-    result = invoke_manifest({'mode': 'in-place', 'repo': str(tmp_path), 'log_root': str(tmp_path / 'logs'), 'reject_if_not_improved': 'depencity'})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'in-place', 'repo': str(tmp_path), 'log_root': str(tmp_path / 'logs'), 'reject_if_not_improved': 'depencity'})
     assert result.exit_code == 2
     assert 'evaluation is not supported in in-place mode' in result.output
 
@@ -239,7 +248,10 @@ def test_failed_tests_roll_back_and_continue(tmp_path, monkeypatch, paired, bad_
     assert sum(r['status'] == 'accepted' for r in reports) == (2 if paired else 1)
     if paired:
         starts.clear()
-        result = invoke_manifest({'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True, 'iterations': 2})
+        result = invoke_manifest({
+            'build_root': str(Path(__file__).resolve().parents[3]),
+            'dockerfile': 'docker/test/Dockerfile',
+            'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True, 'iterations': 2})
         assert result.exit_code == 0, result.output
         assert starts == []
 
@@ -269,25 +281,40 @@ def test_single_run_continues_from_saved_checkpoint(tmp_path, monkeypatch):
         return CodexResult(0, 'failed candidate')
 
     monkeypatch.setattr(Codex, 'run', continued)
-    result = invoke_manifest({'mode': 'evaluated', 'log_root': str(logs), 'resume': True, 'iterations': 3})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'evaluated', 'log_root': str(logs), 'resume': True, 'iterations': 3})
     assert result.exit_code == 0, result.output
     assert calls == ['agent-01.2', 'agent-01.3']
     assert (root / 'depencity/agent-01.1.evaluation.json').read_bytes() == saved
     assert (root / 'depencity/workspace/target.py').read_text() == IMPROVED
     calls.clear()
-    result = invoke_manifest({'mode': 'evaluated', 'log_root': str(logs), 'resume': True})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'evaluated', 'log_root': str(logs), 'resume': True})
     assert result.exit_code == 0, result.output
     assert calls == []
-    result = invoke_manifest({'mode': 'evaluated', 'log_root': str(logs), 'resume': True, 'model': 'different-model'})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'evaluated', 'log_root': str(logs), 'resume': True, 'model': 'different-model'})
     assert result.exit_code != 0
     assert 'settings differ' in result.output
-    result = invoke_manifest({'mode': 'evaluated', 'log_root': str(logs), 'resume': True, 'iterations': 2})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'evaluated', 'log_root': str(logs), 'resume': True, 'iterations': 2})
     assert result.exit_code != 0
     assert 'less than the saved total' in result.output
 
 
 def test_single_continue_requires_saved_run(tmp_path):
-    result = invoke_manifest({'mode': 'in-place', 'log_root': str(tmp_path), 'resume': True})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'in-place', 'log_root': str(tmp_path), 'resume': True})
     assert result.exit_code != 0
     assert 'no run to continue' in result.output
 
@@ -320,7 +347,10 @@ def test_evaluation_error_restores_candidate(tmp_path, monkeypatch):
 def test_evaluation_requires_target_and_tests(tmp_path, options):
     (tmp_path / 'target.py').write_text(ORIGINAL)
     (tmp_path / 'test_target.py').write_text('pass\n')
-    result = invoke_manifest({'mode': 'evaluated', 'repo': str(tmp_path), 'log_root': str(tmp_path / 'logs'), **options})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'evaluated', 'repo': str(tmp_path), 'log_root': str(tmp_path / 'logs'), **options})
     assert result.exit_code == 2
     assert 'evaluation requires target and test_script' in result.output
     assert not (tmp_path / 'logs').exists()
@@ -375,7 +405,10 @@ def test_evaluated_runner_copies_only_target_and_test_script(tmp_path, monkeypat
         return CodexResult(1, '')
 
     monkeypatch.setattr(Codex, 'run', run_agent)
-    result = invoke_manifest({'mode': 'evaluated', 'repo': str(repo), 'log_root': 'results', 'target': 'src/target.py', 'test_script': 'tests/test_target.py'})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'evaluated', 'repo': str(repo), 'log_root': 'results', 'target': 'src/target.py', 'test_script': 'tests/test_target.py'})
     assert result.exit_code == 1, result.output
     assert len(seen) == 1
     assert (repo / 'src/target.py').read_text() == ORIGINAL
@@ -407,7 +440,10 @@ def test_comparison_runs_variants_in_parallel_and_continues(tmp_path, monkeypatc
     saved = {path: path.read_bytes() for path in root.glob('*/*.evaluation.json')}
     assert sorted(calls) == [('depencity', 'depencity.1', ORIGINAL), ('plain', 'plain.1', ORIGINAL)]
     calls.clear()
-    result = invoke_manifest({'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'iterations': 2, 'resume': True})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'iterations': 2, 'resume': True})
     assert result.exit_code == 0, result.output
     assert sorted(calls) == [('depencity', 'depencity.2', IMPROVED), ('plain', 'plain.2', IMPROVED)]
     assert all(path.read_bytes() == data for path, data in saved.items())
@@ -488,7 +524,10 @@ def test_comparison_continue_retries_only_failed_variant(tmp_path, monkeypatch):
         return CodexResult(0, 'simplify')
 
     monkeypatch.setattr(Codex, 'run', retry)
-    result = invoke_manifest({'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True})
+    result = invoke_manifest({
+        'build_root': str(Path(__file__).resolve().parents[3]),
+        'dockerfile': 'docker/test/Dockerfile',
+        'mode': 'evaluated', 'variants': ['plain', 'depencity'], 'log_root': str(logs), 'resume': True})
     assert result.exit_code == 0, result.output
     assert calls == ['plain.1']
     assert depencity_report.read_bytes() == saved_report
@@ -593,7 +632,9 @@ def test_evaluation_measures_root_aggregate(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Codex, 'run', run_agent)
     logs = tmp_path / 'logs'
-    result = invoke_manifest(dict(mode='evaluated', repo=str(tmp_path), log_root=str(logs),
+    result = invoke_manifest(dict(
+        build_root=str(Path(__file__).resolve().parents[3]), dockerfile="docker/test/Dockerfile",
+        mode='evaluated', repo=str(tmp_path), log_root=str(logs),
                                   target='calculator.py', test_script='test_calculator.py'))
     assert result.exit_code == 0, result.output
     report_path, = logs.rglob('*.evaluation.json')

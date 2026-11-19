@@ -44,8 +44,8 @@ def run(manifest: Path, resume: bool) -> None:
         saved = load_manifest(record)
         if settings['iterations'] < saved['iterations']:
             raise click.UsageError('agent.iterations cannot be less than the saved total')
-        if any(value != saved.get(key) for key, value in settings.items()
-               if key not in ('iterations', 'reject_if_not_improved')):
+        fixed_keys = (settings.keys() | saved.keys()) - {'iterations', 'reject_if_not_improved'}
+        if any(settings.get(key) != saved.get(key) for key in fixed_keys):
             raise click.ClickException('manifest settings differ from the saved run')
     else:
         run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
@@ -73,17 +73,18 @@ def run(manifest: Path, resume: bool) -> None:
     pending.replace(log_root / 'metadata.json')
     click.echo(f'Run: {log_root}')
     repo = Path(settings['repo'])
+    docker_options = dict(build_root=Path(settings['build_root']), dockerfile=settings['dockerfile'])
     task, model, iterations = (settings[key] for key in ('task', 'model', 'iterations'))
     if mode == 'evaluated' and len(settings['variants']) > 1:
         runner = ComparisonRunner(
             repo, log_root, task, model, iterations, Path(settings['target']),
             tuple(settings['metrics']), Path(settings['test_script']), resume,
-            settings['reject_if_not_improved'], variants=settings['variants'],
+            settings['reject_if_not_improved'], variants=settings['variants'], **docker_options,
         )
     else:
         directory = log_root / settings['variants'][0] if mode == 'evaluated' else log_root
         directory.mkdir(parents=True, exist_ok=True)
-        codex = Codex(model, directory, with_depencity=settings.get('variants', ['depencity']) != ['plain'])
+        codex = Codex(model, directory, with_depencity=settings.get('variants', ['depencity']) != ['plain'], **docker_options)
         if mode == 'evaluated':
             runner = EvaluatedRunner(
                 codex, repo, task, iterations, Path(settings['target']), tuple(settings['metrics']),

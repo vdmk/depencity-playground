@@ -24,11 +24,11 @@ def test_docker_command_accepts_container_test_command(tmp_path):
 
 def test_docker_build_command_allows_network_only_during_build(tmp_path):
     dockerfile = tmp_path / 'Dockerfile.test'
-    command = docker_build_command(tmp_path, dockerfile, 'complexity-test:local')
+    command = docker_build_command(tmp_path, dockerfile, 'depencity-test:local')
 
     assert command[:4] == ['docker', 'build', '--network', 'default']
     assert command[4:] == [
         '--file', 'Dockerfile.test',
-        '--tag', 'complexity-test:local',
+        '--tag', 'depencity-test:local',
         str(tmp_path),
     ]

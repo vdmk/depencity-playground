@@ -1,0 +1,12 @@
+name = "agent-runner-refactor"
+mode = "workspaces"
+branch_mode = "incremental"
+repo = ".."
+build_root = ".."
+dockerfile = "docker/test/Dockerfile"
+log_root = "../out/agent-runner-refactor"
+task = "Refactor agent_runner/src/agent_runner for clarity. Make one focused simplification per iteration, preserve public behavior, and validate with the agent_runner test suite."
+
+[agent]
+workers = 1
+iterations = 3

@@ -27,12 +27,12 @@ def load_manifest(path: Path) -> dict:
         data = json.loads(path.read_text())['settings']
     else:
         data = tomllib.loads(path.read_text())
-    unknown = data.keys() - {'name', 'mode', 'repo', 'log_root', 'task', 'task_file', 'branch_mode', 'variants', *TABLES}
+    unknown = data.keys() - {'name', 'mode', 'repo', 'log_root', 'task', 'task_file', 'build_root', 'dockerfile', 'branch_mode', 'variants', *TABLES}
     if unknown:
         raise click.UsageError(f'unknown manifest keys: {", ".join(sorted(unknown))}')
     settings = dict(name=path.parent.name, mode='in-place', repo='.', task=DEFAULT_TASK,
                     model='gpt-6-luna', iterations=1)
-    for key in ('name', 'mode', 'repo', 'log_root', 'task'):
+    for key in ('name', 'mode', 'repo', 'log_root', 'task', 'build_root', 'dockerfile'):
         if key in data:
             if not isinstance(data[key], str) or not data[key].strip():
                 raise click.UsageError(f'{key} must be a nonempty string')
@@ -88,11 +88,19 @@ def load_manifest(path: Path) -> dict:
         settings['task'] = (path.parent / data['task_file']).read_text()
         if not settings['task'].strip():
             raise click.UsageError('task_file must contain a task')
-    for key in ('repo', 'log_root'):
+    for key in ('build_root', 'dockerfile'):
+        if key not in settings:
+            raise click.UsageError(f'manifest requires {key}')
+    for key in ('repo', 'log_root', 'build_root'):
         settings[key] = str((path.parent / settings[key]).resolve())
     repo = Path(settings['repo'])
     if not repo.is_dir():
         raise click.UsageError(f'repo is not a directory: {repo}')
+    build_root = Path(settings['build_root'])
+    dockerfile = (build_root / settings['dockerfile']).resolve()
+    if not dockerfile.is_relative_to(build_root) or not dockerfile.is_file():
+        raise click.UsageError('dockerfile must be an existing file inside build_root')
+    settings['dockerfile'] = str(dockerfile.relative_to(build_root))
     if mode == 'evaluated':
         for key in ('target', 'test_script'):
             if not isinstance(settings.get(key), str) or not settings[key].strip():
@@ -120,7 +128,7 @@ def load_manifest(path: Path) -> dict:
 def recorded_settings(settings: dict, directory: Path) -> dict:
     fields = {key for keys in TABLES.values() for key in keys}
     record = {key: value for key, value in settings.items() if key not in fields}
-    for key in ('repo', 'log_root'):
+    for key in ('repo', 'log_root', 'build_root'):
         record[key] = os.path.relpath(settings[key], directory)
     for table, keys in TABLES.items():
         values = {key: settings[key] for key in keys if key in settings}

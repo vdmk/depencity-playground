@@ -17,6 +17,8 @@ name = "calculator-expression-paths"
 mode = "evaluated"
 variants = ["depencity", "plain"]
 repo = "../fixtures"
+build_root = "../.."
+dockerfile = "docker/test/Dockerfile"
 log_root = "../../out/experiments/calculator-expression-paths"
 task_file = "task.md"
 
@@ -36,6 +38,8 @@ reject_if_not_improved = "depencity"
 regardless of the shell's working directory. Evaluation paths resolve relative
 to `repo` and must stay inside it. Use `task = "..."` for an inline prompt instead
 of `task_file`; specifying both is an error.
+
+Both `build_root` and `dockerfile` are required. The build root resolves relative to the manifest directory. The Dockerfile resolves inside that build root.
 
 `log_root` is required. Defaults are the manifest directory for `repo`, its
 directory name for `name`, `in-place` for `mode`, `gpt-6-luna` for `agent.model`,
@@ -88,9 +92,10 @@ failures stop the affected worker.
 ## Run records and resume
 
 Each execution saves its effective settings, complete prompt, repository commit and
-Depencity version in `log_root/<timestamp>-<pid>/metadata.json`. Repository
-and log-root paths are relative to the record directory. Older runs with a
-resolved `run.toml` remain readable.
+Depencity version in `log_root/<timestamp>-<pid>/metadata.json`. Repository, build-root,
+and log-root paths are relative to the record directory. To resume a run recorded
+before the Docker settings were required, add `build_root` and `dockerfile`
+to its saved settings and its manifest.
 
 Use the same experiment manifest with `--continue` to resume the latest run under
 its `log_root`. Increase `agent.iterations` to extend the total; it cannot be

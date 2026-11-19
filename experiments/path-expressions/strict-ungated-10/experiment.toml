@@ -2,6 +2,8 @@ name = "path-expressions-strict-ungated-10"
 mode = "evaluated"
 variants = ["depencity", "plain"]
 repo = "../../fixtures"
+build_root = "../../.."
+dockerfile = "docker/test/Dockerfile"
 log_root = "../../../out/experiments/path-expressions/strict-ungated-10"
 task_file = "task.md"
 

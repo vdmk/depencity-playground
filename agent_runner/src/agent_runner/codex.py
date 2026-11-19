@@ -16,7 +16,10 @@ class CodexResult:
 class Codex:
     """Run fresh agent sessions using the configured model."""
 
-    def __init__(self, model: str, log_dir: Path, with_depencity: bool = True) -> None:
+    def __init__(self, model: str, log_dir: Path, build_root: Path,
+                 dockerfile: str, with_depencity: bool = True) -> None:
+        self.build_root = build_root
+        self.dockerfile = dockerfile
         self.model = model
         executable = shutil.which('codex')
         self.codex = str(Path(executable).resolve()) if executable else None
@@ -56,8 +59,8 @@ class Codex:
             'agent-runner', [
                 'run', '--project', str(project), 'agent-runner-mcp',
                 '--workspace', str(work_dir),
-                '--build-root', str(project),
-                '--dockerfile', 'docker/test/Dockerfile',
+                '--build-root', str(self.build_root),
+                '--dockerfile', self.dockerfile,
             ], work_dir, ['docker'],
         ))
         filesystem = {
