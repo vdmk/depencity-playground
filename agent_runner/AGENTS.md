@@ -109,8 +109,8 @@ a net simplification even when scope or node counters decrease.
 
 ## Multi-Agent Worktree Refactoring
 
-Each worker uses its own worktree and branch. The coordinator selects tested
-commits and integrates them into `main`:
+Each worker uses its own worktree and branch. The user selects the commits to
+integrate into `main`.
 
 Record every reviewed worker commit in
 `agent-runner-files/reviewed.jsonl`, including duplicates and rejected
@@ -124,33 +124,20 @@ Keep the commit message in the `message` field. Use `superseded` for an
 equivalent change already reviewed under another hash, so future sessions do
 not review the same patch again.
 
-The runner preserves each completed iteration branch and worktree for review.
-After a worker commits, its next iteration gets a fresh worktree from the latest
-`main`; do not delete or rebase the prior checkpoint.
+After each run, present the worker commits and their validation results to the
+user. Wait for their selection. Cherry-pick only the selected commits onto
+`main`, in iteration order. Validate the integrated
+changes with the runner suite through Docker MCP and compare the package profile
+with the run record. Record review decisions in the ledger above.
 
-```text
-git worktree add .worktrees/codex-batch/<run>/agent-1/iteration-1 -b codex-batch/<run>/agent-1/iteration-1 main
-# The worker inspects and stages its changes, then commits directly with Git
-# using a focused `refactor:` message.
-git switch main
-git cherry-pick <worker-commit>
-# run MCP docker; never run host pytest
+Before deleting the local run branch, use `git cherry main <run-branch>` to
+check for patches that are still unique to it. Keep the branch while any patch awaits a decision. Once integration is verified
+and the user has finished selecting commits, record the disposition of the
+remaining patches and delete the local run branch. Preserve the branch if a conflict or unexpected
+validation failure leaves integration incomplete.
 
-# after resolving a conflict:
-git cherry-pick --continue
-git cherry-pick --abort
-```
-
-Cherry-pick one accepted commit at a time, run the complete tests and
-re-profile after each one, and never cherry-pick competing alternatives.
-Do not automatically cherry-pick or otherwise move a worker change to `main`
-when it includes test or fixture changes; report the change and ask the user
-before integrating it.
-
-Workers inspect the complete diff, including untracked files, run tests, and
-leave changes uncommitted. They return the requested change summary; the runner
-uses it to commit when worktrees are enabled. Worker commits are not
-automatically moved to `main`.
+Workers leave edits in their worktrees and return a short summary. The runner
+creates the worker commits. The coordinator performs the cherry-picks and cleanup.
 
 Workers read the local ledger directly to search prior decisions and use
 `docker` to run tests. The runner creates their Git checkpoints from the returned summary.
