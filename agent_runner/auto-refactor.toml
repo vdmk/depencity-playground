@@ -9,8 +9,17 @@ task = """
 Refactor agent_runner/src/agent_runner into readable, simple functions while preserving public behavior.
 Minimize package-wide graph.paths.expressions.count, call.occurrences.total.count, and call.dependencies.external.distinct_count.
 
-Use Depencity to measure all three metrics across agent_runner/src/agent_runner before and after each change.
-Choose one cohesive area where a refactor can reduce expression paths or calls. Report the before and after values for all three metrics and explain any tradeoffs.
+Start at a public entry point and trace a high-count expression path across function calls. Find where branches multiply along that path and refactor that part of the workflow.
+
+Use Depencity to report graph.paths.expressions.count, call.occurrences.total.count, and call.dependencies.external.distinct_count across agent_runner/src/agent_runner before and after each change. Explain which branches account for the reduction and any tradeoffs.
+
+Do not:
+- Replace dict() with a {} literal.
+- Replace dict.update() calls with individual key assignments.
+- Lower the expression-path count by duplicating an existing operation across branches.
+- Replace binary arithmetic expressions with conditionals.
+- Extract part of a logical condition into a single-use variable solely to reduce expression paths.
+
 Validate with the Docker MCP tool from the repository root using pytest -q agent_runner/tests -p no:cacheprovider --import-mode=importlib -n 2.
 Leave changes uncommitted for the runner.
 """
