@@ -11,8 +11,8 @@ from agent_runner import runner
 from .utils import DOCKER, FIXTURES
 
 
-# Fixture Python files are inputs. The legacy suite is available by explicit path.
-collect_ignore = ['fixtures', 'integration_old']
+# Fixture Python files are inputs.
+collect_ignore = ['fixtures']
 
 
 @pytest.fixture

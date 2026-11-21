@@ -52,7 +52,7 @@ class Runner(ABC):
 
     @abstractmethod
     def run_worker(self, name):
-        pass
+        """Run the iterations assigned to one worker."""
 
     def run_iteration(self, name, iteration, work_dir):
         click.echo(f'{name}.{iteration}: launching')

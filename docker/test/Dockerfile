@@ -7,5 +7,5 @@ RUN --mount=type=bind,from=depencity,target=/opt/depencity \
 WORKDIR /opt/agent-runner
 COPY agent_runner/pyproject.toml agent_runner/README.md ./
 COPY agent_runner/src ./src
-RUN uv pip install --system --no-cache . 'pytest>=8' 'pytest-xdist>=3.6' 'pytest-benchmark>=5.2' 'pytest-memray>=1.8'
+RUN uv pip install --system --no-cache . 'pytest>=8' 'pytest-xdist>=3.6' 'pytest-benchmark>=5.2' 'pytest-memray>=1.8' pytest-cov
 ENV PYTHONPATH="/workspace/agent_runner/src"

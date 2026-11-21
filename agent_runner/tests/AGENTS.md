@@ -15,7 +15,5 @@ written by the mocked process. An unexpected or unused call fails the test.
 Use `<tmp>` and `<project>` for machine-dependent paths. Update snapshots
 deliberately when a public contract changes.
 
-Run `tests/integration_old` explicitly to exercise the legacy suite.
-
 Do not add absence assertions for removed implementation artifacts (for example,
 checking that deleted snapshot filenames are not created). Test meaningful behavior.

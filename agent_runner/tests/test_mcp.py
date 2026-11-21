@@ -98,3 +98,36 @@ def test_mcp_cli_matches_contract(name, exit_code, monkeypatch):
             case / 'expected_output.stderr.txt'
         ).read_text()
         create_server.assert_not_called()
+
+
+def test_mcp_cli_rejects_missing_dockerfile(monkeypatch):
+    case = FIXTURES / 'mcp/startup'
+    create_server = Mock()
+    monkeypatch.setattr(mcp, 'create_server', create_server)
+
+    result = CliRunner().invoke(
+        mcp.main, ['--build-root', str(case), '--dockerfile', 'missing'], catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1
+    assert result.stderr == f'Error: Dockerfile does not exist: {case / "missing"}\n'
+    create_server.assert_not_called()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize('anyio_backend', ('asyncio',))
+async def test_mcp_reports_missing_docker_executable(tmp_path, monkeypatch, fake_which):
+    case = FIXTURES / 'mcp/startup'
+    fake_which.side_effect = None
+    fake_which.return_value = None
+    monkeypatch.setattr(mcp.Path, 'home', lambda: tmp_path)
+    run = Mock()
+    monkeypatch.setattr(subprocess, 'run', run)
+    server = mcp.create_server(case, case, case / 'Dockerfile')
+
+    async with Client(server) as client:
+        result = await client.call_tool_mcp('docker', {'path': 'task.py'})
+
+    assert result.is_error
+    assert result.content[0].text.endswith('Docker executable not found on PATH or in ~/.docker/bin')
+    run.assert_not_called()
