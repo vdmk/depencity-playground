@@ -1,0 +1,5 @@
+Run: <fixture>/logs/20260102T030405000000Z-42
+agent-01.1: launching
+agent-01.1: finished with return code 7
+agent-01: stopped after nonzero exit
+No agents remain; stopping.

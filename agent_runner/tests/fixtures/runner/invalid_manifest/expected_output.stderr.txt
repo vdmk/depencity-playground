@@ -1,0 +1,4 @@
+Usage: agent-runner run [OPTIONS] MANIFEST
+Try 'agent-runner run --help' for help.
+
+Error: manifest requires log_root

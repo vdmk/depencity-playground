@@ -1,0 +1,10 @@
+[
+  "--workspace",
+  "..",
+  "--build-root",
+  ".",
+  "--dockerfile",
+  "Dockerfile",
+  "--image",
+  "snapshot:test"
+]

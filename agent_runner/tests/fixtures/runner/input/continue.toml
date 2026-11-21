@@ -1,0 +1,9 @@
+name = "snapshot"
+repo = "repo"
+log_root = "logs"
+build_root = "build"
+dockerfile = "Dockerfile.test"
+task_file = "task.txt"
+
+[agent]
+iterations = 2

@@ -1,0 +1,11 @@
+{
+  "20260102T030405000000Z-42/depencity/agent-01.1.before.py": "answer = 40 + 2\n",
+  "20260102T030405000000Z-42/depencity/agent-01.1.candidate.py": "answer = 42\n",
+  "20260102T030405000000Z-42/depencity/agent-01.1.diff": "--- before/target.py\n+++ candidate/target.py\n@@ -1 +1 @@\n-answer = 40 + 2\n+answer = 42\n",
+  "20260102T030405000000Z-42/depencity/agent-01.1.evaluation.json": "{\n  \"target\": \"<tmp>/logs/20260102T030405000000Z-42/depencity/workspace/target.py\",\n  \"metrics\": [\n    \"graph.paths.expressions.count\"\n  ],\n  \"before\": {\n    \"graph.paths.expressions.count\": 4\n  },\n  \"after\": {\n    \"graph.paths.expressions.count\": 2\n  },\n  \"accepted\": true,\n  \"status\": \"accepted\",\n  \"agent_return_code\": 0,\n  \"test_return_code\": 0,\n  \"reject_if_not_improved\": true\n}\n",
+  "20260102T030405000000Z-42/depencity/agent-01.1.profile.json": "{\n  \"graph.paths.expressions.count\": 2\n}\n",
+  "20260102T030405000000Z-42/depencity/agent-01.1.tests.txt": "1 passed\n",
+  "20260102T030405000000Z-42/depencity/workspace/target.py": "answer = 42\n",
+  "20260102T030405000000Z-42/depencity/workspace/test_target.py": "from target import answer\n\ndef test_answer():\n    assert answer == 42\n",
+  "20260102T030405000000Z-42/metadata.json": "{\n  \"commit_hash\": \"0123456789abcdef0123456789abcdef01234567\",\n  \"depencity_version\": \"1.2.3\",\n  \"settings\": {\n    \"name\": \"snapshot\",\n    \"mode\": \"evaluated\",\n    \"repo\": \"<fixture-repo>\",\n    \"task\": \"Simplify the calculation.\",\n    \"log_root\": \"..\",\n    \"build_root\": \"<fixture-build>\",\n    \"dockerfile\": \"Dockerfile.test\",\n    \"variants\": [\n      \"depencity\"\n    ],\n    \"agent\": {\n      \"model\": \"gpt-6-luna\",\n      \"iterations\": 1\n    },\n    \"evaluation\": {\n      \"target\": \"target.py\",\n      \"test_script\": \"test_target.py\",\n      \"metrics\": [\n        \"graph.paths.expressions.count\"\n      ],\n      \"reject_if_not_improved\": \"all\"\n    }\n  }\n}\n"
+}

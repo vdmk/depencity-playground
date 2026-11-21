@@ -1,0 +1,19 @@
+{
+  "commit_hash": "0123456789abcdef0123456789abcdef01234567",
+  "depencity_version": "1.2.3",
+  "settings": {
+    "name": "snapshot",
+    "mode": "workspaces",
+    "repo": "../..",
+    "task": "Simplify the calculation.",
+    "log_root": "..",
+    "build_root": "../../build",
+    "dockerfile": "Dockerfile.test",
+    "branch_mode": "fresh",
+    "agent": {
+      "model": "gpt-6-luna",
+      "iterations": 2,
+      "workers": 1
+    }
+  }
+}

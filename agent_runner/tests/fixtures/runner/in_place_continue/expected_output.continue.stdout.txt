@@ -1,0 +1,4 @@
+Run: <tmp>/logs/20260102T030405000000Z-42
+agent-01.2: launching
+agent-01.2: finished with return code 0
+No agents remain; stopping.

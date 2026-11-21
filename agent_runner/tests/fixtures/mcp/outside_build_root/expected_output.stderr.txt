@@ -1,0 +1,1 @@
+Error: path must be inside workspace: <case>

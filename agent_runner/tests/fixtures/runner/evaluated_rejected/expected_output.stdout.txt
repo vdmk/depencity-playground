@@ -1,0 +1,5 @@
+Run: <tmp>/logs/20260102T030405000000Z-42
+agent-01.1: launching
+agent-01.1: finished with return code 0
+agent-01.1: rejected; ('graph.paths.expressions.count',): {'graph.paths.expressions.count': 4} -> None
+No agents remain; stopping.

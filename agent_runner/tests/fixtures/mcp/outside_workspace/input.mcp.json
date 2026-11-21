@@ -1,0 +1,6 @@
+{
+  "name": "docker",
+  "arguments": {
+    "path": "../outside.py"
+  }
+}

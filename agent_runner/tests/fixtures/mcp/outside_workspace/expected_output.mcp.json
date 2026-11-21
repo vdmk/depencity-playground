@@ -1,0 +1,16 @@
+{
+  "_meta": {
+    "io.modelcontextprotocol/serverInfo": {
+      "name": "agent-runner",
+      "version": "<fastmcp-version>"
+    }
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "Error calling tool 'docker': path must be inside workspace: <case>"
+    }
+  ],
+  "isError": true,
+  "resultType": "complete"
+}

@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "fastmcp": {
+      "wrap_result": true
+    },
+    "io.modelcontextprotocol/serverInfo": {
+      "name": "agent-runner",
+      "version": "<fastmcp-version>"
+    }
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"output\": \"no tests ran\\n\", \"returncode\": 5}"
+    }
+  ],
+  "isError": false,
+  "structuredContent": {
+    "result": "{\"output\": \"no tests ran\\n\", \"returncode\": 5}"
+  },
+  "resultType": "complete"
+}

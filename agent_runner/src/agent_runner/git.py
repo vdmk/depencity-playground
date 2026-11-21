@@ -62,7 +62,6 @@ class Git:
 def create_worktree(repo, root, name, iteration, base):
     branch = f'{BRANCH_PREFIX}/{root.name}/{name}/iteration-{iteration}'
     workspace = root / name / f'iteration-{iteration}'
-    workspace.parent.mkdir(parents=True, exist_ok=True)
     run_git(repo, 'worktree', 'add', '-b', branch, str(workspace), base)
     click.echo(f'Created worktree: {workspace}; branch={branch} base={base}')
     return workspace

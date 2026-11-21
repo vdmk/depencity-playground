@@ -1,0 +1,12 @@
+name = "snapshot"
+repo = "."
+log_root = "logs"
+build_root = "build"
+dockerfile = "Dockerfile.test"
+task_file = "task.txt"
+mode = "workspaces"
+branch_mode = "fresh"
+
+[agent]
+workers = 1
+iterations = 2

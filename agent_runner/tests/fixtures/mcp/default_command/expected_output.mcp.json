@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "fastmcp": {
+      "wrap_result": true
+    },
+    "io.modelcontextprotocol/serverInfo": {
+      "name": "agent-runner",
+      "version": "<fastmcp-version>"
+    }
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"output\": \"hello\\n\", \"returncode\": 0}"
+    }
+  ],
+  "isError": false,
+  "structuredContent": {
+    "result": "{\"output\": \"hello\\n\", \"returncode\": 0}"
+  },
+  "resultType": "complete"
+}

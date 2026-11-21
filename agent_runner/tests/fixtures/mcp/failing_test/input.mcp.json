@@ -1,0 +1,7 @@
+{
+  "name": "docker",
+  "arguments": {
+    "path": "task.py",
+    "command": "python -c \"print(42)\""
+  }
+}

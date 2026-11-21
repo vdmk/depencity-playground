@@ -1,0 +1,13 @@
+name = "snapshot"
+repo = "repo"
+log_root = "logs"
+build_root = "build"
+dockerfile = "Dockerfile.test"
+task_file = "task.txt"
+mode = "evaluated"
+variants = ["depencity"]
+
+[evaluation]
+target = "target.py"
+test_script = "test_target.py"
+reject_if_not_improved = "all"

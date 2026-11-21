@@ -1,0 +1,16 @@
+{
+  "_meta": {
+    "io.modelcontextprotocol/serverInfo": {
+      "name": "agent-runner",
+      "version": "<fastmcp-version>"
+    }
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "Error calling tool 'docker': Docker daemon is unavailable: cannot connect to docker.sock"
+    }
+  ],
+  "isError": true,
+  "resultType": "complete"
+}

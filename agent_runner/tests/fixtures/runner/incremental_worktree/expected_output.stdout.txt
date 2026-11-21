@@ -1,0 +1,9 @@
+Run: <fixture>/logs/20260102T030405000000Z-42
+Created worktree: <fixture>/.worktrees/codex-batch/20260102T030405000000Z-42/agent-01/iteration-1; branch=codex-batch/20260102T030405000000Z-42/agent-01/iteration-1 base=0123456789abcdef0123456789abcdef01234567
+agent-01.1: launching
+agent-01.1: finished with return code 0
+Committed changes: auto-refactor: Simplify the calculation
+agent-01.2: launching
+agent-01.2: finished with return code 0
+Deleted worktree: <fixture>/.worktrees/codex-batch/20260102T030405000000Z-42/agent-01/iteration-1; branch preserved
+No agents remain; stopping.
