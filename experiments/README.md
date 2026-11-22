@@ -13,10 +13,10 @@ with `uv run agent-runner run experiments/NAME/experiment.toml`.
 
 | [path-expressions/strict-ungated-10](path-expressions/strict-ungated-10/experiment.toml) | depencity, plain | 20 | Ten internal attempts; passing candidates may increase metrics |
 
-All use the original [calculator fixture](fixtures/calculator.py), Docker tests,
-and `graph.paths.expressions.count`. All candidates must pass tests. Depencity additionally requires metric improvement
-except in `strict-ungated-10`, where both variants accept passing candidates regardless
-of metric changes. These manifests apply no metric gate to plain.
+The long-words experiments use `long_words.py` and accept candidates that pass
+the Docker tests. The path-expressions experiments use the [calculator fixture](fixtures/calculator.py).
+In that group, the Depencity variant also requires a lower expression-path count
+except in `strict-ungated-10`. Passing tests is sufficient for the plain variant.
 The internal attempt count remains a prompt instruction, not a harness-enforced
 budget.
 

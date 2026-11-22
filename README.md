@@ -22,7 +22,7 @@ The [experiment catalog](experiments/README.md) lists the checked-in tasks and m
 
 ## Reports and visualizations
 
-Generate a self-contained HTML report for an evaluated run:
+Browse the [published reports](published/README.md). To regenerate a report, use the original run directory containing the per-turn evaluation records:
 
 ```sh
 python scripts/experiment_report.py out/experiments/EXPERIMENT/RUN_ID
