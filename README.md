@@ -1,4 +1,4 @@
-# Agentic experiment playground
+# Depencity agentic refactoring playground
 
 This repository contains experiments in agentic refactoring using the Depencity library. It includes an agent runner and tools for reporting experiment results. Currently, only Codex CLI is supported.
 
