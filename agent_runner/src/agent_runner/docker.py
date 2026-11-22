@@ -44,16 +44,13 @@ def docker_build_command(
     image: str,
     executable: str = 'docker',
 ) -> list[str]:
-    command = [
+    return [
         executable, 'build',
         '--network', 'default',
         '--file', str(dockerfile.relative_to(workspace)),
         '--tag', image,
+        str(workspace),
     ]
-    depencity = workspace.parent / 'depencity'
-    if depencity.is_dir():
-        command.extend(['--build-context', f'depencity={depencity}'])
-    return [*command, str(workspace)]
 
 
 def run_docker(

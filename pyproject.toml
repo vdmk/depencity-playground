@@ -10,4 +10,3 @@ package = false
 
 [tool.uv.sources]
 agent-runner = { path = "agent_runner", editable = true }
-depencity = { path = "../depencity", editable = true }

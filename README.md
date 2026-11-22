@@ -2,7 +2,7 @@
 
 `agent_runner/` runs isolated Codex workers, Docker validation, and metric-guided
 refactoring searches. `experiments/` defines reproducible calculator experiments
-with TOML manifests. Depencity comes from `../depencity` as an editable dependency.
+with TOML manifests.
 
 Install with `uv sync`. Running experiments requires a configured `codex` CLI
 and Docker. Start a plain-versus-Depencity comparison:
@@ -59,9 +59,9 @@ build root, `docker/test/Dockerfile`, and:
 pytest -q agent_runner/tests -p no:cacheprovider --import-mode=importlib -n 2
 ```
 
-Test containers run with networking disabled. The runner supplies `../depencity`
-as a named Docker build context. For a manual image build:
+Test containers run with networking
+disabled. For a manual image build:
 
 ```sh
-docker build --build-context depencity=../depencity -f docker/test/Dockerfile .
+docker build -f docker/test/Dockerfile .
 ```

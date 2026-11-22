@@ -56,8 +56,7 @@ async def test_docker_matches_mcp_contract(name, replies, test_command, monkeypa
         fake_which.assert_called_once_with('docker')
         expected_calls.append(call(
             [str(DOCKER), 'build', '--network', 'default', '--file', 'Dockerfile',
-             '--tag', 'snapshot:test', '--build-context', f'depencity={case.parent / "depencity"}',
-             str(build_root)],
+             '--tag', 'snapshot:test', str(build_root)],
             cwd=build_root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         ))
     else:

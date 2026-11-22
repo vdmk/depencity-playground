@@ -2,8 +2,7 @@
 FROM python:3.14-alpine
 RUN apk add --no-cache git build-base linux-headers libunwind-dev lz4-dev pkgconf elfutils-dev \
     && python -m pip install --no-cache-dir uv
-RUN --mount=type=bind,from=depencity,target=/opt/depencity \
-    uv pip install --system --no-cache /opt/depencity
+RUN uv pip install --system --no-cache depencity
 WORKDIR /opt/agent-runner
 COPY agent_runner/pyproject.toml agent_runner/README.md ./
 COPY agent_runner/src ./src
