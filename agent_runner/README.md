@@ -1,16 +1,36 @@
-# agent-runner
+# Agent runner
 
-Run Codex refactoring searches from a TOML experiment definition:
+The agent runner uses Codex CLI to run refactoring experiments defined in TOML. It can edit a repository in place, evaluate candidates in an isolated workspace, or coordinate multiple agents in Git worktrees.
+
+## Run an experiment
+
+From the repository root, install dependencies with `uv sync`, configure Codex CLI, and make sure Docker is available. Then run a manifest:
 
 ```sh
-agent-runner run experiments/path-expressions/simple/experiment.toml
-agent-runner run experiments/path-expressions/simple/experiment.toml --continue
+uv run agent-runner run experiments/path-expressions/simple/experiment.toml
 ```
 
-The CLI accepts a manifest and an optional `--continue`. All experiment settings
-live in TOML; the former configuration flags and separate run commands are removed.
+To resume the latest run for that manifest:
 
-## Manifest
+```sh
+uv run agent-runner run experiments/path-expressions/simple/experiment.toml --continue
+```
+
+All settings live in the manifest. See the [experiment catalog](../experiments/README.md) for examples.
+
+## Choose a mode
+
+| Mode | How it works | Git and evaluation |
+|---|---|---|
+| `in-place` | Runs cumulative iterations directly in `repo`. | Leaves edits uncommitted; no Git management or evaluation. |
+| `evaluated` | Copies the target and original test script into an isolated workspace. Tests and measures each candidate, retaining accepted edits. | Original source files stay untouched; no commits are needed. |
+| `workspaces` | Runs concurrent workers in separate Git worktrees. | The repository must be clean. The runner commits worker changes to branches; nothing merges automatically. |
+
+In `workspaces` mode, set `workers` under `[agent]` and choose a top-level `branch_mode`. `fresh` creates a branch for each iteration from the coordinator branch's latest tip; `incremental` keeps one branch per worker and builds a commit chain. Workers are independent processes. Workspaces mode does not support resume.
+
+## Configure a manifest
+
+This example compares Codex with and without Depencity tools:
 
 ```toml
 name = "calculator-expression-paths"
@@ -24,7 +44,6 @@ task_file = "task.md"
 
 [agent]
 model = "gpt-6-luna"
-
 iterations = 3
 
 [evaluation]
@@ -34,89 +53,41 @@ metrics = ["graph.paths.expressions.count"]
 reject_if_not_improved = "depencity"
 ```
 
-`repo`, `log_root`, and `task_file` resolve relative to the manifest's directory,
-regardless of the shell's working directory. Evaluation paths resolve relative
-to `repo` and must stay inside it. Use `task = "..."` for an inline prompt instead
-of `task_file`; specifying both is an error.
+`repo`, `log_root`, `task_file`, and `build_root` resolve relative to the manifest directory, regardless of the shell's working directory. `dockerfile` resolves inside the build root. Evaluation paths resolve relative to `repo` and must stay inside it. Use `task` for an inline prompt instead of `task_file`; specifying both is an error.
 
-Both `build_root` and `dockerfile` are required. The build root resolves relative to the manifest directory. The Dockerfile resolves inside that build root.
+`build_root`, `dockerfile`, and `log_root` are required. Defaults are the manifest directory for `repo`, its directory name for `name`, `in-place` for `mode`, `gpt-6-luna` for `agent.model`, and one iteration. With neither task field, the runner uses a generic behavior-preserving refactoring task. Unknown fields, unsupported settings, invalid types, and out-of-range budgets are rejected before a run starts.
 
-`log_root` is required. Defaults are the manifest directory for `repo`, its
-directory name for `name`, `in-place` for `mode`, `gpt-6-luna` for `agent.model`,
-and one iteration. Omitting both task fields uses a generic behavior-preserving
-refactoring task. Unknown fields, unsupported mode settings, invalid types,
-and out-of-range budgets are rejected before creating a run.
+`agent.iterations` ranges from 1 to 1000 per worker or comparison variant. In workspaces mode, `agent.workers` ranges from 1 to 100 (default 5), and `branch_mode` defaults to `fresh`.
 
-Top-level `variants` selects the evaluated agents: `["depencity"]` (default),
-`["plain"]`, or `["depencity", "plain"]`. Both variants run in parallel with
-the same task and iteration budget. Each selected variant always has its own
-`depencity/` or `plain/` directory, including when only one variant is selected.
-Only `depencity` receives Depencity tools. Both variants must pass tests;
-`evaluation.reject_if_not_improved` controls their metric gates. Variants cannot change when resuming. This setting requires
-`mode = "evaluated"`.
+### Evaluated variants and acceptance
 
-## Modes
+In evaluated mode, `variants` selects `["depencity"]` (the default), `["plain"]`, or both. Both variants use the same task and iteration budget and run in parallel; only the Depencity variant receives Depencity tools. Each selected variant has its own `depencity/` or `plain/` directory. Variants cannot change when resuming.
 
-- `in-place`: cumulative iterations directly in `repo`, without Git management.
-  Edits remain uncommitted; no evaluator runs.
-- `evaluated`: copy the target and original test script into an isolated
-  `workspace/`. Measure and Docker-test each candidate, retaining accepted edits.
-  Original source files stay untouched.
-- `workspaces`: concurrent workers in isolated Git worktrees. Add
-  `workers = 5` under `[agent]` and top-level `branch_mode = "fresh"`. Both require this
-  mode. The repository must be clean. `fresh` creates one branch per iteration
-  from the coordinator branch's latest tip; `incremental` keeps one branch per
-  worker and builds a commit chain. Nothing merges automatically.
+The `[evaluation]` section is required in evaluated mode and unsupported in other modes. `target` and `test_script` must name distinct existing files. `metrics` defaults to `["graph.paths.expressions.count"]` and must be a nonempty array of unique names. Measurements use the aggregate `__root__` profile, including descendant scopes.
 
-`agent.iterations` is 1–1000, per worker or comparison variant.
-`agent.workers` is 1–100, default 5. `branch_mode` defaults to `fresh`.
-Workers are independent processes managed by the runner.
+Every candidate must pass the original tests. `reject_if_not_improved` controls the additional metric gate:
 
-`[evaluation]` is required for evaluated mode and unsupported
-in the other modes. `target` and `test_script` must name distinct existing files.
-Metrics are measured from the aggregate `__root__` profile, including all descendant scopes.
-`metrics` defaults to `["graph.paths.expressions.count"]` and must be a nonempty
-array of unique metric names.
+- `false` (default): neither variant requires metric improvement.
+- `"depencity"`: only the Depencity variant requires improvement.
+- `"all"`: every selected variant requires improvement.
 
-`reject_if_not_improved` selects which variants require metric improvement:
+When the gate applies, no selected metric may increase and at least one must decrease. Rejected candidates are logged and rolled back. Test failures continue the search; agent and infrastructure failures stop the affected worker.
 
-- `false` (default): neither variant.
-- `"depencity"`: only the Depencity variant.
-- `"all"`: every selected variant, including plain.
+## Records and resume
 
-Every candidate must pass the original tests. When the metric gate applies,
-no selected metric may increase and at least one must decrease. Rejected candidates are logged
-and rolled back. Test failures continue the search; agent and infrastructure
-failures stop the affected worker.
+Each execution records effective settings, the complete prompt, repository commit, and Depencity version in `log_root/<timestamp>-<pid>/metadata.json`, alongside transcripts and other run artifacts. Repository, build-root, and log-root paths are relative to the record directory.
 
-## Run records and resume
+Use `--continue` with the same manifest to resume the latest run under its `log_root`, or pass a saved `metadata.json` to reuse its resolved settings. You may increase `agent.iterations` to extend the total, but cannot reduce it. Only iterations and `evaluation.reject_if_not_improved` may change; other effective settings, including prompt contents, must match.
 
-Each execution saves its effective settings, complete prompt, repository commit and
-Depencity version in `log_root/<timestamp>-<pid>/metadata.json`. Repository, build-root,
-and log-root paths are relative to the record directory. To resume a run recorded
-before the Docker settings were required, add `build_root` and `dockerfile`
-to its saved settings and its manifest.
+Evaluated runs replay accepted and rejected checkpoints and retry interrupted or agent-failed iterations. In-place runs retain current files and skip iterations with a completed summary. To resume a run recorded before Docker settings were required, add `build_root` and `dockerfile` to its saved settings and manifest.
 
-Use the same experiment manifest with `--continue` to resume the latest run under
-its `log_root`. Increase `agent.iterations` to extend the total; it cannot be
-reduced. Only iterations and `evaluation.reject_if_not_improved` may change when continuing.
-Other effective settings, including prompt contents, must match. Alternatively,
-pass a saved `metadata.json` itself to reuse its resolved settings.
+The first Ctrl+C stops new iterations after active ones finish; the second interrupts the runner. Each worker saves a structured `short_summary` beside its transcript.
 
-Evaluated runs replay accepted/rejected checkpoints and retry interrupted or
-agent-failed iterations. In-place runs retain current files and skip iterations
-with a completed summary. Workspaces mode does not support resume.
+### Worktree results
 
-Worktree workers leave changes uncommitted; the runner creates focused
-`auto-refactor: <short_summary>` commits. Clean worktrees are removed after a fresh
-iteration or after an incremental worker finishes. Uncommitted changes preserve
-the worktree. Branches and commits remain for review.
+Workers leave edits uncommitted; the runner creates focused `auto-refactor: <short_summary>` commits. Clean worktrees are removed after a fresh iteration or after an incremental worker finishes. A worktree with uncommitted changes is preserved. Branches and commits remain for review and are never merged automatically.
 
-The first Ctrl+C stops new iterations after active ones finish; the second
-interrupts the runner. Each worker finishes with a structured `short_summary`
-record saved beside its transcript.
-
-## Reports and runtime
+## Reports and validation
 
 Generate a self-contained HTML report for an evaluated run:
 
@@ -124,17 +95,10 @@ Generate a self-contained HTML report for an evaluated run:
 python scripts/experiment_report.py out/experiments/EXPERIMENT/RUN_ID
 ```
 
-Workers can read/write their project folder and access minimal system runtime
-paths; logs are denied. Original tests are restored before validation. Docker
-runs tests with networking disabled and the workspace mounted read-only.
-The package provides `agent-runner-mcp` for Docker testing; see the
-[project README](../README.md) for setup and validation.
+Workers can read and write their project folder and access minimal system runtime paths; logs are denied. Original tests are restored before validation. Docker runs tests with networking disabled and the workspace mounted read-only. The package provides `agent-runner-mcp` for Docker testing; see the [project README](../README.md) for setup and validation.
 
-`manifest.py` owns configuration loading and resolved TOML writing. `runner.py`
-selects the execution mode. `runners/` owns scheduling and workspace lifetimes;
-`evaluator.py` owns measurements, test gates, and rollback. Depencity remains an
-external analyzer dependency.
+## Implementation and historical runs
 
-Historical argument-based runs are preserved under `out/archive/experiments/`.
-They retain their original `run.json`, transcripts, and generated reports; the
-new interface does not resume them or regenerate their reports.
+`manifest.py` loads configuration and writes resolved TOML. `runner.py` selects the execution mode; `runners/` manages scheduling and workspace lifetimes; `evaluator.py` handles measurements, test gates, and rollback. Depencity remains an external analyzer dependency.
+
+Historical argument-based runs remain under `out/archive/experiments/` with their original `run.json`, transcripts, and reports. The current interface cannot resume them or regenerate their reports.
