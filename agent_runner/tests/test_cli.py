@@ -260,6 +260,8 @@ def test_evaluated_run(name, variant, candidate, test_code, metric_after, tmp_pa
 
     def run_codex(codex, iteration, directory, task):
         assert codex.with_depencity == (variant == 'depencity')
+        assert set(directory.iterdir()) == {directory / 'target.py', directory / 'test_target.py'}
+        (directory / 'helper.py').write_text('extra = True')
         (directory / 'target.py').write_text(candidate)
         if test_code:
             (directory / 'test_target.py').write_text('raise AssertionError("modified by agent")\n')
@@ -290,7 +292,9 @@ def test_evaluated_run(name, variant, candidate, test_code, metric_after, tmp_pa
     assert result.exit_code == 0
     assert result.stderr == ''
     assert result.stdout.replace(str(tmp_path), '<tmp>') == (case / 'expected_output.stdout.txt').read_text()
-    codex_run.assert_called_once_with(ANY, 'agent-01.1', workspace, TASK + ' Target: target.py. Tests: test_target.py.')
+    assert not codex_run.call_args.args[2].exists()
+    assert not (workspace / 'helper.py').exists()
+    codex_run.assert_called_once_with(ANY, 'agent-01.1', ANY, TASK + ' Target: target.py. Tests: test_target.py.')
 
     profile_call = call(
         [str(FIXTURES / 'bin/depencity'), 'profile', '--format', 'json', '--depth', '0',

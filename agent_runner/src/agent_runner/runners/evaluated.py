@@ -3,6 +3,7 @@
 import shutil
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import click
 
@@ -55,7 +56,20 @@ class EvaluatedRunner(InPlaceRunner):
         before = self.evaluator.snapshot()
         (self.codex.log_dir / f'{name}.{iteration}.before.py').write_bytes(before.source)
         try:
-            result = super().run_iteration(name, iteration, work_dir)
+            target = self.evaluator.target.relative_to(work_dir)
+            with TemporaryDirectory() as directory:
+                turn = Path(directory).resolve()
+                for relative in (target, self.evaluator.test_script):
+                    destination = turn / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(work_dir / relative, destination)
+                result = super().run_iteration(name, iteration, turn)
+                candidate = checked_workspace_path(turn, target)
+                if candidate.exists():
+                    shutil.copyfile(candidate, self.evaluator.check_target())
+                else:
+                    self.evaluator.check_target().unlink()
+
             report = self.evaluator.evaluate(
                 before, self.codex.log_dir / f'{name}.{iteration}', result.return_code,
             )

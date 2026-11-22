@@ -1,7 +1,7 @@
 import json
 import subprocess
 from pathlib import Path
-from unittest.mock import Mock, create_autospec
+from unittest.mock import ANY, Mock, create_autospec
 
 import pytest
 from click.testing import CliRunner
@@ -77,7 +77,7 @@ def test_evaluated_runner_restores_saved_turns_before_retrying(tmp_path, monkeyp
                           'test_target.py', workspace, resume=True, reject_if_not_improved=True)
 
     assert run.run() is False
-    codex.run.assert_called_once_with('agent-01.3', workspace, run.task)
+    codex.run.assert_called_once_with('agent-01.3', ANY, run.task)
     assert (workspace / 'target.py').read_bytes() == ORIGINAL
     assert read_json(tmp_path / 'agent-01.3.evaluation.json')['status'] == 'agent_failed'
 
@@ -104,7 +104,7 @@ def test_evaluated_runner_handles_interrupt_or_restores_after_test_launch_error(
     monkeypatch.setattr(evaluator, '_docker', docker)
 
     assert run.run() is not docker_fails
-    codex.run.assert_called_once_with('agent-01.1', workspace, run.task)
+    codex.run.assert_called_once_with('agent-01.1', ANY, run.task)
     assert (workspace / 'target.py').read_bytes() == (ORIGINAL if docker_fails else CANDIDATE)
     if not docker_fails:
         assert read_json(tmp_path / 'agent-01.1.evaluation.json')['accepted'] is True
@@ -126,7 +126,7 @@ def test_comparison_replays_completed_turns_and_retries_a_partial_record(tmp_pat
     attempted = []
 
     def run_codex(codex, iteration, workspace, task):
-        assert codex.with_depencity == (workspace == profiled)
+        assert codex.with_depencity == iteration.startswith('depencity.')
         assert (workspace / 'test_target.py').read_bytes() == (INPUTS / 'repo/test_target.py').read_bytes()
         attempted.append((iteration, (workspace / 'target.py').read_bytes()))
         (workspace / 'target.py').write_bytes(CANDIDATE)
