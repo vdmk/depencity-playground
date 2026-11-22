@@ -54,6 +54,8 @@ def test_evaluated_runner_restores_saved_turns_before_retrying(tmp_path, monkeyp
     workspace = tmp_path / 'workspace'
     workspace.mkdir()
     (workspace / 'target.py').write_bytes(b'interrupted contents\n')
+    saved_test = b'def test_original(): assert True\n'
+    (workspace / 'test_target.py').write_bytes(saved_test)
     for iteration, status, suffix in ((1, 'accepted', 'candidate'), (2, 'rejected', 'before')):
         (tmp_path / f'agent-01.{iteration}.evaluation.json').write_text(
             json.dumps({'status': status, 'accepted': status == 'accepted'}),
@@ -67,6 +69,7 @@ def test_evaluated_runner_restores_saved_turns_before_retrying(tmp_path, monkeyp
 
     def failed_turn(name, directory, task):
         assert (directory / 'target.py').read_bytes() == ORIGINAL
+        assert (directory / 'test_target.py').read_bytes() == saved_test
         (directory / 'target.py').write_bytes(b'failed edit\n')
         return CodexResult(7, '')
 

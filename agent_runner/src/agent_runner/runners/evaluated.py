@@ -18,8 +18,8 @@ class EvaluatedRunner(InPlaceRunner):
                  workspace, resume, reject_if_not_improved):
         target = (repo / target).resolve().relative_to(repo)
         test_script = (repo / test_script).resolve().relative_to(repo)
-        for relative_path in (target, test_script):
-            if not resume or relative_path == test_script:
+        if not resume:
+            for relative_path in (target, test_script):
                 destination = checked_workspace_path(workspace, relative_path)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(repo / relative_path, destination)
