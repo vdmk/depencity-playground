@@ -1,8 +1,6 @@
 .DS_Store
 .idea/
 .worktrees/
-agent-runner-files/logs/
-agent-runner-files/reviewed.jsonl
 .venv/
 __pycache__/
 *.py[cod]

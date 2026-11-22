@@ -7,8 +7,7 @@ The agent-runner MCP does not expose a commit tool. Automated workers leave
 changes uncommitted and return the requested summary; the runner creates their
 commits when worktrees are enabled.
 
-Use [approval guidance](../agent-runner-files/approval_guidance.md) when judging
-refactorings and module placement. Paths in the workflow below are relative to
+Paths in the workflow below are relative to
 the workspace root. Worker execution, Docker validation, and commit review belong
 to this package; do not introduce a runtime dependency on Depencity.
 
@@ -112,23 +111,11 @@ a net simplification even when scope or node counters decrease.
 Each worker uses its own worktree and branch. The user selects the commits to
 integrate into `main`.
 
-Record every reviewed worker commit in
-`agent-runner-files/reviewed.jsonl`, including duplicates and rejected
-candidates. Append one JSON object per line:
-
-```json
-{"commit":"<hash>","status":"accepted|rejected|superseded","message":"<commit message>","reason":"<short reason>"}
-```
-
-Keep the commit message in the `message` field. Use `superseded` for an
-equivalent change already reviewed under another hash, so future sessions do
-not review the same patch again.
-
 After each run, present the worker commits and their validation results to the
 user. Wait for their selection. Cherry-pick only the selected commits onto
 `main`, in iteration order. Validate the integrated
 changes with the runner suite through Docker MCP and compare the package profile
-with the run record. Record review decisions in the ledger above.
+with the run record.
 
 Before deleting the local run branch, use `git cherry main <run-branch>` to
 check for patches that are still unique to it. Keep the branch while any patch awaits a decision. Once integration is verified
@@ -139,17 +126,7 @@ validation failure leaves integration incomplete.
 Workers leave edits in their worktrees and return a short summary. The runner
 creates the worker commits. The coordinator performs the cherry-picks and cleanup.
 
-Workers read the local ledger directly to search prior decisions and use
-`docker` to run tests. The runner creates their Git checkpoints from the returned summary.
-The coordinator uses only
-`docker`; it does not create commits through the
-agent-runner MCP. Append each decision directly to
-`agent-runner-files/reviewed.jsonl` using the format above.
-
-Named directional target profiles are recorded in
-[target.json](../agent-runner-files/target.json).
-Use them as evolving preferences for refactoring decisions; do not turn them
-into a universal ideal score.
+Workers use `docker` to run tests. The coordinator uses `docker` for validation.
 
 ## Refactoring methods
 
