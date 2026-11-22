@@ -168,9 +168,11 @@ def render(directory, manifest, files, artifacts, source_fixture):
         config.pop(key, None)
     page = interactive.render(directory, config, rows)
     metric = LABELS.get(config['metrics'][0], config['metrics'][0])
-    objective = f'Track whether the agent steadily reduces {escape(metric.lower())} with Depencity MCP and without it.'
-    gate = 'Required' if config.get('reject_if_not_improved') else 'Optional'
-    facts = [('Task', config['target']), ('Runs per variant', 1),
+    objective = f'Track whether the agent steadily reduces {escape(metric.lower())}.'
+    rule = config.get('reject_if_not_improved')
+    gated = [variant for variant in files if rule in ('all', variant)]
+    gate = 'Required for ' + ', '.join(gated) if gated else 'Optional'
+    facts = [('Task', config['target']), ('Variants', ', '.join(files)), ('Runs per variant', 1),
              ('Turns per run', config['iterations']), ('Metric improvement', gate)]
     conditions = ''.join(f'<div><dt>{label}</dt><dd>{escape(str(value))}</dd></div>'
                          for label, value in facts)
