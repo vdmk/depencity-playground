@@ -115,7 +115,9 @@ class Evaluator:
                 'test_return_code': test_return_code,
                 'reject_if_not_improved': self.reject_if_not_improved,
             }
-            Path(f'{log_path}.evaluation.json').write_text(json.dumps(report, indent=2) + '\n')
+            pending = Path(f'{log_path}.evaluation.json.tmp')
+            pending.write_text(json.dumps(report, indent=2) + '\n')
+            pending.replace(Path(f'{log_path}.evaluation.json'))
             return report
         finally:
             if not accepted:
