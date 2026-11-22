@@ -30,6 +30,7 @@ def read_experiment(run_dir):
     for path in [*run_dir.glob('*.evaluation.json'), *run_dir.glob('*/*.evaluation.json')]:
         variant, iteration = path.name.removesuffix('.evaluation.json').rsplit('.', 1)
         report = json.loads(path.read_text())
+        report.pop('code_diff', None)
         profile_path = path.with_name(path.name.replace('.evaluation.json', '.profile.json'))
         if profile_path.exists():
             report['after'] = json.loads(profile_path.read_text())
@@ -198,7 +199,7 @@ function drawCode(){
   return `<tr><td>${esc(metric)}</td><td>${fmt(before)}</td><td>${fmt(after)}</td><td class="${style}">${delta===null?'—':signed(delta)}</td><td class="${style}">${percent===null?'—':signed(percent)+'%'}</td></tr>`;
  }).join('')||'<tr><td colspan="5">No measured metric changes.</td></tr>':'';
  if(!row?.code_diff){el('code-view').textContent='Code snapshots unavailable.';return;}
- const cell=(line,kind)=>`<div class="code-cell ${line?kind:'empty'}"><span class="line-number">${line?line[0]:''}</span><code>${line?esc(line[1]):''}</code></div>`;
+ const cell=(line,kind)=>`<div class="code-cell ${line?kind:'empty'}"><span class="line-number">${line?esc(line[0]):''}</span><code>${line?esc(line[1]):''}</code></div>`;
  el('code-view').innerHTML='<div class="code-grid"><div class="code-heading">Before</div><div class="code-heading">Candidate</div>'+row.code_diff.map(line=>cell(line.before,line.kind==='equal'?'':'removed')+cell(line.candidate,line.kind==='equal'?'':'added')).join('')+'</div>';
  el('code-view').scrollTop=0;
 }
@@ -264,7 +265,7 @@ function drawMetric(metric,panel){
   svg+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>`;
   s.points.filter(p=>finite(p.value)).forEach(p=>{
    const title=`${s.name}, iteration ${p.iteration}, ${retained?'retained':'candidate'} ${fmt(p.value)}, ${p.status}`;
-   svg+=`<circle data-chart-point data-variant="${esc(s.name)}" data-iteration="${p.iteration}" ${p.iteration>0?'role="button" aria-pressed="false" style="cursor:pointer"':''} cx="${x(p.iteration)}" cy="${y(p.value)}" r="5" stroke="${s.color}" stroke-width="2"
+   svg+=`<circle data-chart-point data-variant="${esc(s.name)}" data-iteration="${esc(p.iteration)}" ${p.iteration>0?'role="button" aria-pressed="false" style="cursor:pointer"':''} cx="${x(p.iteration)}" cy="${y(p.value)}" r="5" stroke="${s.color}" stroke-width="2"
     fill="${p.status==='accepted'||p.status==='baseline'?s.color:'white'}" tabindex="0" aria-label="${esc(title)}"><title>${esc(title)}</title></circle>`;
    if(el('labels').checked)svg+=`<text x="${x(p.iteration)}" y="${y(p.value)-12}" text-anchor="middle" font-size="11" fill="${s.color}">${fmt(p.value)}</text>`;
   });
@@ -280,7 +281,7 @@ function drawMetric(metric,panel){
  el('rows').innerHTML=rows.map(r=>{
   const a=r.before?.[metric],b=r.after?.[metric];
   const change=finite(a)&&finite(b)?`${b-a>0?'+':''}${fmt(b-a)}${a!==0?' ('+((b-a)/Math.abs(a)*100).toFixed(1)+'%)':''}`:'—';
-  return `<tr><td>${esc(r.variant)}</td><td>${r.iteration}</td><td>${fmt(a)}</td><td>${fmt(b)}</td><td>${fmt(r.accepted?b:a)}</td><td>${change}</td><td>${esc(r.status)}</td><td>${fmt(r.test_return_code)}</td></tr>`;
+  return `<tr><td>${esc(r.variant)}</td><td>${esc(r.iteration)}</td><td>${esc(fmt(a))}</td><td>${esc(fmt(b))}</td><td>${esc(fmt(r.accepted?b:a))}</td><td>${change}</td><td>${esc(r.status)}</td><td>${esc(fmt(r.test_return_code))}</td></tr>`;
  }).join('');
  el('summary').textContent=series.map(s=>{
   const measured=s.points.filter(p=>p.iteration>0&&finite(p.value));

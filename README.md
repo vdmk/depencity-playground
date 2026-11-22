@@ -14,7 +14,7 @@ uv run agent-runner run experiments/path-expressions/simple/experiment.toml
 Or run a Depencity-only search:
 
 ```sh
-uv run agent-runner run experiments/path-expressions/strict-target-10/experiment.toml
+uv run agent-runner run experiments/path-expressions/internal-20/experiment.toml
 ```
 
 Settings live in the manifest. Relative paths resolve from its directory.
