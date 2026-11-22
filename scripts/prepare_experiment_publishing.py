@@ -19,6 +19,8 @@ def locate(directory):
         for i in range(1, manifest['agent']['iterations'] + 1):
             filename = f'{variant}.{i}.evaluation.json'
             path = directory / variant / filename
+            if not path.exists() and len(manifest['variants']) == 1:
+                path = directory / variant / f'agent-01.{i}.evaluation.json'
             if not path.exists():
                 path = directory / filename
             if not path.is_file():

@@ -29,6 +29,8 @@ def read_experiment(run_dir):
     rows = []
     for path in [*run_dir.glob('*.evaluation.json'), *run_dir.glob('*/*.evaluation.json')]:
         variant, iteration = path.name.removesuffix('.evaluation.json').rsplit('.', 1)
+        if path.parent.name in manifest.get('variants', []) and path.parent != run_dir:
+            variant = path.parent.name
         report = json.loads(path.read_text())
         report.pop('code_diff', None)
         profile_path = path.with_name(path.name.replace('.evaluation.json', '.profile.json'))
