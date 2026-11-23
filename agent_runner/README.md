@@ -16,7 +16,13 @@ To resume the latest run for that manifest:
 uv run agent-runner run experiments/path-expressions/simple/experiment.toml --continue
 ```
 
-All settings live in the manifest. See the [experiment catalog](../experiments/README.md) for examples.
+The manifest defines the experiment defaults. See the [experiment catalog](../experiments/README.md) for examples.
+
+Use `--iterations` to override the total iterations per worker or variant. In workspaces mode, use `--workers` to override the number of workers.
+
+```sh
+uv run agent-runner run agent_runner/auto-refactor.toml --workers 3 --iterations 5
+```
 
 ## Choose a mode
 

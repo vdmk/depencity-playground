@@ -28,11 +28,21 @@ def main() -> None:
 @click.argument('manifest', type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option('--continue', 'resume', is_flag=True,
               help='Resume the latest run in the manifest log_root; iterations is the total.')
+@click.option('--workers', type=click.IntRange(1, 100),
+              help='Override agent.workers for workspaces mode.')
+@click.option('--iterations', type=click.IntRange(1, 1000),
+              help='Override agent.iterations. With --continue, this is the total.')
 @cli_errors
-def run(manifest: Path, resume: bool) -> None:
+def run(manifest: Path, resume: bool, workers: int | None, iterations: int | None) -> None:
     """Run MANIFEST, saving its resolved settings alongside the results."""
     settings = load_manifest(manifest)
     mode = settings['mode']
+    if workers is not None:
+        if mode != 'workspaces':
+            raise click.UsageError('--workers requires workspaces mode')
+        settings['workers'] = workers
+    if iterations is not None:
+        settings['iterations'] = iterations
     base = Path(settings['log_root'])
     if resume:
         if mode == 'workspaces':
