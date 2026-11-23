@@ -113,6 +113,32 @@ def test_evaluated_runner_handles_interrupt_or_restores_after_test_launch_error(
         assert read_json(tmp_path / 'agent-01.1.evaluation.json')['accepted'] is True
 
 
+def test_evaluated_runner_restores_deleted_target_when_tests_fail(tmp_path, monkeypatch):
+    workspace = tmp_path / 'workspace'
+    codex = Mock(log_dir=tmp_path, build_root=INPUTS / 'build', dockerfile='Dockerfile.test')
+    run = EvaluatedRunner(codex, INPUTS / 'repo', 'task', 1, 'target.py', (METRIC,),
+                          'test_target.py', workspace, resume=False, reject_if_not_improved=False)
+
+    def delete_target(name, directory, task):
+        (directory / 'target.py').unlink()
+        return CodexResult(0, 'Delete the target')
+
+    def test_deleted_target(*args, **kwargs):
+        assert not (workspace / 'target.py').exists()
+        return '{"returncode":1,"output":"missing target"}'
+
+    codex.run.side_effect = delete_target
+    monkeypatch.setattr(Evaluator, 'measure', Mock(return_value={METRIC: 4}))
+    docker = Mock(side_effect=test_deleted_target)
+    monkeypatch.setattr(evaluator, '_docker', docker)
+
+    assert run.run()
+    codex.run.assert_called_once_with('agent-01.1', ANY, run.task)
+    docker.assert_called_once()
+    assert (workspace / 'target.py').read_bytes() == ORIGINAL
+    assert read_json(tmp_path / 'agent-01.1.evaluation.json')['status'] == 'rejected'
+
+
 def test_comparison_replays_completed_turns_and_retries_a_partial_record(tmp_path, monkeypatch, fake_which):
     manifest = tmp_path / 'compare.toml'
     body = (INPUTS / 'evaluated.toml').read_text()

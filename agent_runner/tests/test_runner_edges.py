@@ -25,6 +25,41 @@ from .utils import FIXTURES, read_json
 INPUTS = FIXTURES / 'runner/input'
 
 
+def test_cli_records_worker_and_iteration_overrides(tmp_path, monkeypatch):
+    manifest = INPUTS / 'fresh.toml'
+    settings = load_manifest(manifest)
+    settings['log_root'] = str(tmp_path)
+    monkeypatch.setattr(runner, 'load_manifest', Mock(return_value=settings))
+    monkeypatch.setattr(subprocess, 'run', Mock(return_value=subprocess.CompletedProcess([], 0, 'head\n')))
+    run_configured = Mock(return_value=True)
+    monkeypatch.setattr(runner, '_run_configured', run_configured)
+
+    result = CliRunner().invoke(
+        runner.main, ['run', str(manifest), '--workers', '3', '--iterations', '5'],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert result.stderr == ''
+    metadata, = tmp_path.glob('*/metadata.json')
+    agent = read_json(metadata)['settings']['agent']
+    assert agent['workers'] == 3
+    assert agent['iterations'] == 5
+    run_configured.assert_called_once_with(
+        {**settings, 'workers': 3, 'iterations': 5}, metadata.parent, False, 'workspaces',
+    )
+
+
+def test_cli_rejects_workers_outside_workspaces():
+    result = CliRunner().invoke(
+        runner.main, ['run', str(INPUTS / 'in_place.toml'), '--workers', '3'],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 2
+    assert '--workers requires workspaces mode' in result.stderr
+
+
 @pytest.mark.parametrize(('case', 'exit_code', 'message'), (
     ('workspaces', 2, 'workspaces mode does not support --continue'),
     ('missing', 1, 'no run to continue under'),
