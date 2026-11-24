@@ -66,26 +66,41 @@ def _configure_mode(settings: dict, data: dict) -> set[str]:
     mode = settings['mode']
     if mode not in ('in-place', 'evaluated', 'workspaces'):
         raise click.UsageError('mode must be in-place, evaluated, or workspaces')
-    if 'variants' in data and mode != 'evaluated':
-        raise click.UsageError('variants requires evaluated mode')
+    _validate_mode_options(data, mode)
     if mode == 'evaluated':
-        variants = data.get('variants', ['depencity'])
-        if (not isinstance(variants, list) or not variants
-                or any(variant not in ('depencity', 'plain') for variant in variants)
-                or len(set(variants)) != len(variants)):
-            raise click.UsageError('variants must be a nonempty array of unique depencity or plain names')
-        settings['variants'] = variants
+        _configure_evaluated(settings, data)
     allowed = {'agent'}
     if mode == 'evaluated':
         allowed.add('evaluation')
         settings.update(metrics=['graph.paths.expressions.count'], reject_if_not_improved=False)
+    if 'branch_mode' in data and mode != 'workspaces':
+        raise click.UsageError('branch_mode requires workspaces mode')
     if mode == 'workspaces':
-        settings.update(workers=5, branch_mode='fresh')
-    if 'branch_mode' in data:
-        if mode != 'workspaces':
-            raise click.UsageError('branch_mode requires workspaces mode')
-        settings['branch_mode'] = data['branch_mode']
+        _configure_workspaces(settings, data)
     return allowed
+
+
+def _validate_mode_options(data: dict, mode: str) -> None:
+    """Reject options that do not apply to the selected mode."""
+    if 'variants' in data and mode != 'evaluated':
+        raise click.UsageError('variants requires evaluated mode')
+
+
+def _configure_evaluated(settings: dict, data: dict) -> None:
+    """Validate and install evaluated-mode variants."""
+    variants = data.get('variants', ['depencity'])
+    if (not isinstance(variants, list) or not variants
+            or any(variant not in ('depencity', 'plain') for variant in variants)
+            or len(set(variants)) != len(variants)):
+        raise click.UsageError('variants must be a nonempty array of unique depencity or plain names')
+    settings['variants'] = variants
+
+
+def _configure_workspaces(settings: dict, data: dict) -> None:
+    """Install workspace defaults and an optional branch mode."""
+    settings.update(workers=5, branch_mode='fresh')
+    if 'branch_mode' in data:
+        settings['branch_mode'] = data['branch_mode']
 
 
 def _apply_manifest_values(settings: dict, data: dict, allowed: set[str]) -> None:
