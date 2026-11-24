@@ -32,7 +32,7 @@ uv run agent-runner run agent_runner/auto-refactor.toml --workers 3 --iterations
 | `evaluated` | Each turn starts in a fresh temporary directory with the current target and original test script. The runner copies only the target back to the evaluation workspace for validation. Accepted edits carry forward to the next turn. | Original source files stay untouched; no commits are needed. |
 | `workspaces` | Runs concurrent workers in separate Git worktrees. | The repository must be clean. The runner commits worker changes to branches; nothing merges automatically. |
 
-In `workspaces` mode, set `workers` under `[agent]` and choose a top-level `branch_mode`. `fresh` creates a branch for each iteration from the coordinator branch's latest tip; `incremental` keeps one branch per worker and builds a commit chain. Workers are independent processes. Workspaces mode does not support resume.
+In `workspaces` mode, set `workers` under `[agent]` and choose a top-level `branch_mode`. `fresh` creates a branch for each iteration from the coordinator branch's latest tip; `incremental` keeps one branch per worker and builds a commit chain. Workers are independent processes. Workers receive round-robin assignments of Python files in the repository, skipping hidden paths, `out` and `tests` directories, and `test_*.py` files. Each worker keeps the same assignment across iterations. If there are fewer files than workers, assignments reuse files. Workspaces mode does not support resume.
 
 ## Configure a manifest
 

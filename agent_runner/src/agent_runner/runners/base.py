@@ -54,9 +54,12 @@ class Runner(ABC):
     def run_worker(self, name):
         """Run the iterations assigned to one worker."""
 
+    def worker_prompt(self, name):
+        return self.task
+
     def run_iteration(self, name, iteration, work_dir):
         click.echo(f'{name}.{iteration}: launching')
-        result = self.codex.run(f'{name}.{iteration}', work_dir, self.task)
+        result = self.codex.run(f'{name}.{iteration}', work_dir, self.worker_prompt(name))
         click.echo(f'{name}.{iteration}: finished with return code {result.return_code}')
         if result.return_code != 0:
             click.echo(f'{name}: stopped after nonzero exit')

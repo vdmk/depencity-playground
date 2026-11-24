@@ -5,7 +5,7 @@ import subprocess
 import sys
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 from click.testing import CliRunner
@@ -58,6 +58,64 @@ def test_cli_rejects_workers_outside_workspaces():
 
     assert result.exit_code == 2
     assert '--workers requires workspaces mode' in result.stderr
+
+
+@pytest.mark.parametrize(('branch_mode', 'runner_type'), (
+    ('fresh', FreshRunner), ('incremental', IncrementalRunner),
+))
+def test_workspaces_keep_disjoint_file_assignments(branch_mode, runner_type, tmp_path, monkeypatch):
+    source = tmp_path / 'src'
+    source.mkdir()
+    for name in ('a.py', 'b.py', 'c.py', 'd.py', '.hidden.py', 'notes.txt'):
+        (source / name).touch()
+    hidden = tmp_path / '.cache'
+    hidden.mkdir()
+    (hidden / 'ignored.py').touch()
+    output = tmp_path / 'out'
+    output.mkdir()
+    (output / 'generated.py').touch()
+    tests = tmp_path / 'tests'
+    tests.mkdir()
+    (tests / 'helpers.py').touch()
+    manifest = tmp_path / 'run.toml'
+    manifest.write_text(
+        (INPUTS / f'{branch_mode}.toml').read_text()
+        .replace('build_root = "build"', f'build_root = "{INPUTS / "build"}"')
+        .replace('task_file = "task.txt"', 'task = "Refactor source."')
+        .replace('workers = 1', 'workers = 2')
+    )
+    check_output = Mock(side_effect=['', 'head', 'refs/heads/main'])
+    monkeypatch.setattr(subprocess, 'check_output', check_output)
+    monkeypatch.setattr(subprocess, 'run', Mock(return_value=subprocess.CompletedProcess([], 0, 'head\n')))
+    codex = Mock()
+    codex.run.return_value = CodexResult(0, 'done')
+    monkeypatch.setattr(runner, 'Codex', Mock(return_value=codex))
+
+    def run_assigned_turns(selected):
+        for name in ('agent-01', 'agent-02'):
+            for iteration in (1, 2):
+                selected.run_iteration(name, iteration, tmp_path)
+        return True
+
+    monkeypatch.setattr(runner_type, 'run', run_assigned_turns)
+    result = CliRunner().invoke(runner.main, ['run', str(manifest)], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    git_options = {'text': True, 'stderr': subprocess.PIPE}
+    assert check_output.call_args_list == [
+        call(['git', '-C', str(tmp_path), 'status', '--porcelain'], **git_options),
+        call(['git', '-C', str(tmp_path), 'rev-parse', 'HEAD'], **git_options),
+        call(['git', '-C', str(tmp_path), 'rev-parse', '--symbolic-full-name', 'HEAD'], **git_options),
+    ]
+    assert [
+        (invocation.args[0], invocation.args[2].split('Refactor only these source files, in order: ')[1])
+        for invocation in codex.run.call_args_list
+    ] == [
+        ('agent-01.1', 'src/a.py, src/c.py.'),
+        ('agent-01.2', 'src/a.py, src/c.py.'),
+        ('agent-02.1', 'src/b.py, src/d.py.'),
+        ('agent-02.2', 'src/b.py, src/d.py.'),
+    ]
 
 
 @pytest.mark.parametrize(('case', 'exit_code', 'message'), (

@@ -109,7 +109,17 @@ def _run_configured(settings, log_root, resume, mode) -> bool:
             )
         elif mode == 'workspaces':
             runner_class = FreshRunner if settings['branch_mode'] == 'fresh' else IncrementalRunner
-            runner = runner_class(codex, repo, settings['workers'], task, iterations, log_root.name)
+            workers = settings['workers']
+            source_files = []
+            for directory, subdirs, files in repo.walk():
+                subdirs[:] = [
+                    name for name in subdirs if not name.startswith('.') and name not in ('out', 'tests')
+                ]
+                source_files.extend(
+                    (directory / name).relative_to(repo).as_posix()
+                    for name in files if name.endswith('.py') and not name.startswith(('.', 'test_'))
+                )
+            runner = runner_class(codex, repo, workers, task, iterations, log_root.name, sorted(source_files))
         else:
             runner = InPlaceRunner(codex, repo, task, iterations, resume=resume)
     return runner.run()

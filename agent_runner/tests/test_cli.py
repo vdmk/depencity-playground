@@ -95,8 +95,8 @@ def test_worktrees(mode, monkeypatch, fake_which, mock_path_writes):
         ['git', 'rev-parse', 'HEAD'], cwd=repo, capture_output=True, text=True,
     )
     assert codex_run.call_args_list == [
-        call('agent-01.1', Path(first), TASK),
-        call('agent-01.2', Path(second), TASK),
+        call('agent-01.1', Path(first), TASK + ' Refactor only these source files, in order: repo/target.py.'),
+        call('agent-01.2', Path(second), TASK + ' Refactor only these source files, in order: repo/target.py.'),
     ]
     fake_which.assert_called_once_with('codex')
 

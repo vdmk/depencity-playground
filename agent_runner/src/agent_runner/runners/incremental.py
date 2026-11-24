@@ -1,15 +1,10 @@
 """Cumulative iterations in one workspace per worker."""
 
-from agent_runner.git import Git
-from agent_runner.runners.base import Runner
+from agent_runner.runners.worktree import WorktreeRunner
 
 
-class IncrementalRunner(Runner):
+class IncrementalRunner(WorktreeRunner):
     """Keep each worker's branch and worktree open across iterations."""
-
-    def __init__(self, codex, repo, count, task, iterations, run_id):
-        super().__init__(codex, repo, count, task, iterations)
-        self.git = Git(repo, run_id)
 
     def run_worker(self, name):
         with self.git.create_workspace_branch(name, 1) as branch:
