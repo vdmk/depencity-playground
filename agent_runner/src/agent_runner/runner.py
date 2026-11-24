@@ -88,41 +88,79 @@ def run(manifest: Path, resume: bool, workers: int | None, iterations: int | Non
 
 def _run_configured(settings, log_root, resume, mode) -> bool:
     """Build and execute the runner selected by the resolved settings."""
+    if mode == 'evaluated':
+        if len(settings['variants']) > 1:
+            return _run_comparison(settings, log_root, resume)
+        return _run_evaluated(settings, log_root, resume)
+    if mode == 'workspaces':
+        return _run_workspaces(settings, log_root)
+    return _run_in_place(settings, log_root, resume)
+
+
+def _docker_options(settings):
+    return dict(build_root=Path(settings['build_root']), dockerfile=settings['dockerfile'])
+
+
+def _run_comparison(settings, log_root, resume):
+    """Run each evaluated variant in an isolated workspace."""
     repo = Path(settings['repo'])
-    docker_options = dict(build_root=Path(settings['build_root']), dockerfile=settings['dockerfile'])
-    task, model, iterations = (settings[key] for key in ('task', 'model', 'iterations'))
-    if mode == 'evaluated' and len(settings['variants']) > 1:
-        runner = ComparisonRunner(
-            repo, log_root, task, model, iterations, Path(settings['target']),
-            tuple(settings['metrics']), Path(settings['test_script']), resume,
-            settings['reject_if_not_improved'], variants=settings['variants'], **docker_options,
-        )
-    else:
-        directory = log_root / settings['variants'][0] if mode == 'evaluated' else log_root
-        directory.mkdir(parents=True, exist_ok=True)
-        codex = Codex(model, directory, with_depencity=settings.get('variants', ['depencity']) != ['plain'], **docker_options)
-        if mode == 'evaluated':
-            runner = EvaluatedRunner(
-                codex, repo, task, iterations, Path(settings['target']), tuple(settings['metrics']),
-                Path(settings['test_script']), workspace=directory / 'workspace', resume=resume,
-                reject_if_not_improved=settings['reject_if_not_improved'] in ('all', settings['variants'][0]),
-            )
-        elif mode == 'workspaces':
-            runner_class = FreshRunner if settings['branch_mode'] == 'fresh' else IncrementalRunner
-            workers = settings['workers']
-            source_files = []
-            for directory, subdirs, files in repo.walk():
-                subdirs[:] = [
-                    name for name in subdirs if not name.startswith('.') and name not in ('out', 'tests')
-                ]
-                source_files.extend(
-                    (directory / name).relative_to(repo).as_posix()
-                    for name in files if name.endswith('.py') and not name.startswith(('.', 'test_'))
-                )
-            runner = runner_class(codex, repo, workers, task, iterations, log_root.name, sorted(source_files))
-        else:
-            runner = InPlaceRunner(codex, repo, task, iterations, resume=resume)
+    return ComparisonRunner(
+        repo, log_root, settings['task'], settings['model'], settings['iterations'],
+        Path(settings['target']), tuple(settings['metrics']), Path(settings['test_script']), resume,
+        settings['reject_if_not_improved'], variants=settings['variants'], **_docker_options(settings),
+    ).run()
+
+
+def _run_evaluated(settings, log_root, resume):
+    """Run one evaluated variant in its own workspace."""
+    repo = Path(settings['repo'])
+    directory = log_root / settings['variants'][0]
+    directory.mkdir(parents=True, exist_ok=True)
+    codex = _create_codex(settings, directory)
+    runner = EvaluatedRunner(
+        codex, repo, settings['task'], settings['iterations'], Path(settings['target']),
+        tuple(settings['metrics']), Path(settings['test_script']), workspace=directory / 'workspace',
+        resume=resume,
+        reject_if_not_improved=settings['reject_if_not_improved'] in ('all', settings['variants'][0]),
+    )
     return runner.run()
+
+
+def _run_workspaces(settings, log_root):
+    """Run concurrent workers in fresh or incremental worktrees."""
+    repo = Path(settings['repo'])
+    log_root.mkdir(parents=True, exist_ok=True)
+    codex = _create_codex(settings, log_root)
+    runner_class = FreshRunner if settings['branch_mode'] == 'fresh' else IncrementalRunner
+    source_files = []
+    for directory, subdirs, files in repo.walk():
+        subdirs[:] = [name for name in subdirs if not name.startswith('.') and name not in ('out', 'tests')]
+        source_files.extend(
+            (directory / name).relative_to(repo).as_posix()
+            for name in files if name.endswith('.py') and not name.startswith(('.', 'test_'))
+        )
+    runner = runner_class(
+        codex, repo, settings['workers'], settings['task'], settings['iterations'],
+        log_root.name, sorted(source_files),
+    )
+    return runner.run()
+
+
+def _run_in_place(settings, log_root, resume):
+    """Run iterations directly in the repository."""
+    directory = log_root
+    directory.mkdir(parents=True, exist_ok=True)
+    codex = _create_codex(settings, directory)
+    return InPlaceRunner(codex, Path(settings['repo']), settings['task'], settings['iterations'], resume=resume).run()
+
+
+def _create_codex(settings, directory):
+    """Create a Codex client configured for the selected variant."""
+    variants = settings.get('variants', ['depencity'])
+    return Codex(
+        settings['model'], directory,
+        with_depencity=variants != ['plain'], **_docker_options(settings),
+    )
 
 
 if __name__ == '__main__':
