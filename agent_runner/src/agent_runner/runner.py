@@ -61,7 +61,18 @@ def run(manifest: Path, resume: bool, workers: int | None, iterations: int | Non
         run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
         log_root = base / run_id
         log_root.mkdir(parents=True)
-    if not resume:
+    _write_metadata(settings, log_root, resume)
+    click.echo(f'Run: {log_root}')
+    if not _run_configured(settings, log_root, resume, mode):
+        raise click.exceptions.Exit(1)
+
+
+def _write_metadata(settings, log_root, resume):
+    """Preserve run metadata while replacing its resolved settings."""
+    metadata_path = log_root / 'metadata.json'
+    if resume:
+        metadata = json.loads(metadata_path.read_text()) if metadata_path.exists() else {}
+    else:
         commit = subprocess.run(
             ['git', 'rev-parse', 'HEAD'], cwd=settings['repo'],
             capture_output=True, text=True,
@@ -74,16 +85,10 @@ def run(manifest: Path, resume: bool, workers: int | None, iterations: int | Non
             'commit_hash': commit.stdout.strip() if commit.returncode == 0 else None,
             'depencity_version': depencity_version,
         }
-    else:
-        previous = log_root / 'metadata.json'
-        metadata = json.loads(previous.read_text()) if previous.exists() else {}
     metadata['settings'] = recorded_settings(settings, log_root)
     pending = log_root / 'metadata.json.tmp'
     pending.write_text(json.dumps(metadata, indent=2) + '\n')
-    pending.replace(log_root / 'metadata.json')
-    click.echo(f'Run: {log_root}')
-    if not _run_configured(settings, log_root, resume, mode):
-        raise click.exceptions.Exit(1)
+    pending.replace(metadata_path)
 
 
 def _run_configured(settings, log_root, resume, mode) -> bool:
