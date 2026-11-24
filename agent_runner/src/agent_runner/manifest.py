@@ -23,6 +23,21 @@ TABLES = {
 def load_manifest(path: Path) -> dict:
     """Resolve paths from the manifest directory, and evaluation paths from repo."""
     path = path.resolve()
+    data = _read_manifest(path)
+    settings = _default_settings(path)
+    allowed = _configure_mode(settings, data)
+    _apply_manifest_values(settings, data, allowed)
+    _validate_agent_settings(settings)
+    _read_task_file(settings, data, path)
+    _resolve_build_paths(settings, path)
+    repo = Path(settings['repo'])
+    if settings['mode'] == 'evaluated':
+        _resolve_evaluation_paths(settings, repo)
+    return settings
+
+
+def _read_manifest(path: Path) -> dict:
+    """Read a TOML manifest or the settings saved in run metadata."""
     if path.name == 'metadata.json':
         data = json.loads(path.read_text())['settings']
     else:
@@ -30,8 +45,17 @@ def load_manifest(path: Path) -> dict:
     unknown = data.keys() - {'name', 'mode', 'repo', 'log_root', 'task', 'task_file', 'build_root', 'dockerfile', 'branch_mode', 'variants', *TABLES}
     if unknown:
         raise click.UsageError(f'unknown manifest keys: {", ".join(sorted(unknown))}')
-    settings = dict(name=path.parent.name, mode='in-place', repo='.', task=DEFAULT_TASK,
-                    model='gpt-6-luna', iterations=1)
+    return data
+
+
+def _default_settings(path: Path) -> dict:
+    """Create settings with the defaults shared by all manifest modes."""
+    return dict(name=path.parent.name, mode='in-place', repo='.', task=DEFAULT_TASK,
+                model='gpt-6-luna', iterations=1)
+
+
+def _configure_mode(settings: dict, data: dict) -> set[str]:
+    """Validate mode-specific options and install their defaults."""
     for key in ('name', 'mode', 'repo', 'log_root', 'task', 'build_root', 'dockerfile'):
         if key in data:
             if not isinstance(data[key], str) or not data[key].strip():
@@ -61,6 +85,12 @@ def load_manifest(path: Path) -> dict:
         if mode != 'workspaces':
             raise click.UsageError('branch_mode requires workspaces mode')
         settings['branch_mode'] = data['branch_mode']
+    return allowed
+
+
+def _apply_manifest_values(settings: dict, data: dict, allowed: set[str]) -> None:
+    """Apply table values after validating they are supported in this mode."""
+    mode = settings['mode']
     for table, fields in TABLES.items():
         if table not in data:
             continue
@@ -73,6 +103,10 @@ def load_manifest(path: Path) -> dict:
             if key == 'workers' and mode != 'workspaces':
                 raise click.UsageError(f'agent.{key} requires workspaces mode')
             settings[key] = value
+
+
+def _validate_agent_settings(settings: dict) -> None:
+    """Validate generic limits and options that apply to every runner mode."""
     for key, limit in (('iterations', 1000), ('workers', 100)):
         if key in settings and (type(settings[key]) is not int or not 1 <= settings[key] <= limit):
             raise click.UsageError(f'agent.{key} must be an integer between 1 and {limit}')
@@ -80,6 +114,10 @@ def load_manifest(path: Path) -> dict:
         raise click.UsageError('branch_mode must be fresh or incremental')
     if not isinstance(settings['model'], str) or not settings['model'].strip():
         raise click.UsageError('agent.model must be a nonempty string')
+
+
+def _read_task_file(settings: dict, data: dict, path: Path) -> None:
+    """Resolve task_file when supplied and reject conflicting task sources."""
     if 'task_file' in data:
         if 'task' in data:
             raise click.UsageError('use task or task_file, not both')
@@ -88,11 +126,6 @@ def load_manifest(path: Path) -> dict:
         settings['task'] = (path.parent / data['task_file']).read_text()
         if not settings['task'].strip():
             raise click.UsageError('task_file must contain a task')
-    _resolve_build_paths(settings, path)
-    repo = Path(settings['repo'])
-    if mode == 'evaluated':
-        _resolve_evaluation_paths(settings, repo)
-    return settings
 
 
 def _resolve_build_paths(settings: dict, path: Path) -> None:
