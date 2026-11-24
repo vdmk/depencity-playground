@@ -5,8 +5,9 @@ import subprocess
 import sys
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
-from unittest.mock import Mock, call
+from unittest.mock import MagicMock, Mock, call
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -14,6 +15,7 @@ from agent_runner import runner
 from agent_runner.codex import Codex, CodexResult, _create_mcp_server_options
 from agent_runner.git import Git
 from agent_runner.manifest import load_manifest
+from agent_runner.runners import worktree
 from agent_runner.runners.base import Runner
 from agent_runner.runners.fresh import FreshRunner
 from agent_runner.runners.in_place import InPlaceRunner
@@ -23,6 +25,68 @@ from .utils import FIXTURES, read_json
 
 
 INPUTS = FIXTURES / 'runner/input'
+
+
+@pytest.mark.parametrize(('missing_lines', 'missing_branches'), ((0, 0), (1, 0), (0, 1)))
+@pytest.mark.parametrize('runner_type', (FreshRunner, IncrementalRunner))
+def test_worktree_commits_only_at_baseline_coverage(
+    missing_lines, missing_branches, runner_type, tmp_path, monkeypatch,
+):
+    checkout = tmp_path / 'checkout'
+    candidate = tmp_path / 'candidate'
+    branch = Mock(work_dir=candidate)
+    git = Mock()
+    context = MagicMock()
+    context.__enter__.return_value = branch
+    git.create_workspace_branch.return_value = context
+    monkeypatch.setattr(worktree, 'Git', Mock(return_value=git))
+    codex = Mock(log_dir=tmp_path, build_root=checkout, dockerfile='Dockerfile.test')
+    codex.run.return_value = CodexResult(0, 'Simplify the workflow')
+
+    def coverage_result(lines, branches):
+        totals = {'missing_lines': lines, 'num_statements': 10,
+                  'missing_branches': branches, 'num_branches': 4}
+        output = 'tests passed\n' + json.dumps({'totals': totals})
+        return json.dumps({'returncode': 0, 'output': output})
+
+    unchanged = missing_lines == missing_branches == 0
+    reports = [coverage_result(0, 0), coverage_result(missing_lines, missing_branches)]
+    if unchanged:
+        reports.append(coverage_result(0, 0))
+    docker = Mock(side_effect=reports)
+    monkeypatch.setattr(worktree, '_docker', docker)
+    configured = runner_type(
+        codex, checkout, 1, 'task', 2, 'run', require_unchanged_coverage=True,
+    )
+
+    assert configured.run() is unchanged
+    iterations = 2 if unchanged else 1
+    assert codex.run.call_count == iterations
+    assert codex.run.return_value.return_code == 0
+    assert [invocation.args[1] for invocation in docker.call_args_list] == [checkout] + [candidate] * iterations
+    assert len({invocation.args[4] for invocation in docker.call_args_list}) == 1
+    assert (tmp_path / 'baseline.coverage.log').is_file()
+    assert (tmp_path / 'agent-01.1.coverage.log').is_file()
+    assert branch.method_calls == ([call.commit('Simplify the workflow')] * iterations if unchanged else [])
+
+
+def test_worktree_does_not_start_workers_when_baseline_coverage_fails(tmp_path, monkeypatch):
+    git = Mock()
+    monkeypatch.setattr(worktree, 'Git', Mock(return_value=git))
+    docker = Mock(return_value=json.dumps({'returncode': 1, 'output': 'tests failed\n'}))
+    monkeypatch.setattr(worktree, '_docker', docker)
+    codex = Mock(log_dir=tmp_path, build_root=tmp_path, dockerfile='Dockerfile.test')
+    configured = IncrementalRunner(
+        codex, tmp_path, 1, 'task', 1, 'run', require_unchanged_coverage=True,
+    )
+
+    with pytest.raises(click.ClickException, match='baseline: coverage check failed'):
+        configured.run()
+
+    docker.assert_called_once()
+    git.create_workspace_branch.assert_not_called()
+    codex.run.assert_not_called()
+    assert (tmp_path / 'baseline.coverage.log').read_text() == 'tests failed\n'
 
 
 def test_cli_records_worker_and_iteration_overrides(tmp_path, monkeypatch):

@@ -14,5 +14,6 @@ class FreshRunner(WorktreeRunner):
                 result = self.run_iteration(name, iteration, branch.work_dir)
                 if result.return_code != 0:
                     return False
-                branch.commit(result.short_summary)
+                if not self.commit_candidate(name, iteration, branch, result.short_summary):
+                    return False
         return True

@@ -27,3 +27,4 @@ Leave changes uncommitted for the runner.
 [agent]
 workers = 5
 iterations = 5
+require_unchanged_coverage = true
