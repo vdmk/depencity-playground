@@ -15,15 +15,27 @@ def checked_workspace_path(root, relative):
     """Reject symlinks and non-regular files before host-side file access."""
     root = Path(root).absolute()
     relative = Path(relative)
+    _check_relative_path(relative)
+    path = root / relative
+    _check_workspace_path(root, relative, path)
+    _check_regular_file(path)
+    return path
+
+
+def _check_relative_path(relative):
     if relative.is_absolute() or '..' in relative.parts:
         raise OSError(f'path must be relative to workspace: {relative}')
-    path = root / relative
-    # Resolving must not change any component below the workspace root.
+
+
+def _check_workspace_path(root, relative, path):
+    """Reject symlinks in the workspace root and target path."""
     if root.is_symlink() or path.resolve() != root.resolve() / relative:
         raise OSError(f'workspace symlinks are not allowed: {path}')
+
+
+def _check_regular_file(path):
     if path.exists() and not path.is_file():
         raise OSError(f'workspace file must be regular: {path}')
-    return path
 
 
 @dataclass
