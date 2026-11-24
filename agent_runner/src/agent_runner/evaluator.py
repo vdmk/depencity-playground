@@ -70,6 +70,23 @@ class Evaluator:
     def restore_tests(self):
         checked_workspace_path(self.repo, self.test_script).write_bytes(self.test_source)
 
+    def run_tests(self, log_path):
+        result = json.loads(_docker(
+            str(self.test_script), self.repo, self.build_root, self.dockerfile,
+            shlex.join(['python', '-m', 'pytest', '-q', str(self.test_script),
+                        '-p', 'no:cacheprovider']),
+        ))
+        Path(f'{log_path}.tests.txt').write_text(result['output'])
+        return result['returncode']
+
+    def accepts(self, before, after_values):
+        if not self.reject_if_not_improved:
+            return True
+        return (
+            all(after_values[key] <= before.values[key] for key in self.metrics)
+            and any(after_values[key] < before.values[key] for key in self.metrics)
+        )
+
     def evaluate(self, before, log_path, agent_return_code):
         accepted = False
         try:
@@ -87,23 +104,14 @@ class Evaluator:
             test_return_code = None
             status = 'agent_failed'
             if agent_return_code == 0:
-                tests = json.loads(_docker(
-                    str(self.test_script), self.repo, self.build_root, self.dockerfile,
-                    shlex.join(['python', '-m', 'pytest', '-q', str(self.test_script),
-                                '-p', 'no:cacheprovider']),
-                ))
-                Path(f'{log_path}.tests.txt').write_text(tests['output'])
-                test_return_code = tests['returncode']
+                test_return_code = self.run_tests(log_path)
                 status = 'rejected'
                 if test_return_code == 0:
                     after_values = self.measure()
                     Path(f'{log_path}.profile.json').write_text(
                         json.dumps(after_values, indent=2) + '\n'
                     )
-                    accepted = not self.reject_if_not_improved or (
-                        all(after_values[key] <= before.values[key] for key in self.metrics)
-                        and any(after_values[key] < before.values[key] for key in self.metrics)
-                    )
+                    accepted = self.accepts(before, after_values)
                     status = 'accepted' if accepted else 'rejected'
             report = {
                 'target': str(self.target), 'metrics': self.metrics,
