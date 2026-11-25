@@ -23,19 +23,26 @@ RUN_ID = '20260102T030405000000Z-42'
 HEAD = '0123456789abcdef0123456789abcdef01234567'
 TASK = (
     'Simplify the calculation. Do not commit changes. '
-    'Write short_summary as a concise imperative commit subject describing only the code change. '
+    'For short_summary: One concise imperative commit subject, without prefix or commentary. If no changes, write what was attempted. '
     'Put measurements, tradeoffs and validation results in report. '
     'The agent caller will commit as "auto-refactor: {short_summary}".'
 )
 
 
 @pytest.mark.parametrize('mode', ('fresh', 'incremental'))
-def test_worktrees(mode, monkeypatch, fake_which, mock_path_writes):
+def test_worktrees(mode, monkeypatch, fake_which, tmp_path, mock_path_writes):
     case = FIXTURES / 'runner' / f'{mode}_worktree'
     manifest = INPUTS / f'{mode}.toml'
     repo = str(manifest.parent)
     log_dir = manifest.parent / 'logs' / RUN_ID
     mkdir, write_text, replace = mock_path_writes
+    ledger = tmp_path / 'attempts.jsonl'
+    original_open = Path.open
+
+    def open_path(path, *args, **kwargs):
+        return original_open(ledger if path == log_dir / 'attempts.jsonl' else path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'open', open_path)
     branch = f'codex-batch/{RUN_ID}/agent-01'
     first = f'{repo}/.worktrees/{branch}/iteration-1'
     second = f'{repo}/.worktrees/{branch}/iteration-2' if mode == 'fresh' else first
@@ -94,6 +101,7 @@ def test_worktrees(mode, monkeypatch, fake_which, mock_path_writes):
     subprocess_run.assert_called_once_with(
         ['git', 'rev-parse', 'HEAD'], cwd=repo, capture_output=True, text=True,
     )
+    assert [json.loads(line)['status'] for line in ledger.read_text().splitlines()] == ['accepted', 'no_change']
     assert codex_run.call_args_list == [
         call('agent-01.1', Path(first), TASK + ' Refactor only these source files, in order: repo/target.py.'),
         call('agent-01.2', Path(second), TASK + ' Refactor only these source files, in order: repo/target.py.'),

@@ -3,6 +3,7 @@
 import json
 import shlex
 from fractions import Fraction
+from threading import Lock
 
 import click
 
@@ -21,6 +22,8 @@ class WorktreeRunner(Runner):
         self.git = Git(repo, run_id)
         self.require_unchanged_coverage = require_unchanged_coverage
         self.enforce_extraction_path_limits = enforce_extraction_path_limits
+        self.attempts = []
+        self.attempt_lock = Lock()
         self.baseline_coverage = None
         self.file_assignments = {
             f'agent-{index + 1:02d}': source_files[index::count] or [source_files[index % len(source_files)]]
@@ -32,20 +35,34 @@ class WorktreeRunner(Runner):
             self.baseline_coverage = self.measure_coverage(self.repo, 'baseline')
         return super().run()
 
+    def finish_attempt(self, name, iteration, branch, result):
+        status, reason = self.commit_candidate(name, iteration, branch, result.short_summary)
+        record = {
+            'worker': name, 'iteration': iteration, 'files': self.file_assignments.get(name, []),
+            'status': status, 'summary': result.short_summary, 'reason': reason,
+        }
+        with self.attempt_lock:
+            with (self.codex.log_dir / 'attempts.jsonl').open('a') as ledger:
+                ledger.write(json.dumps(record) + '\n')
+            self.attempts.append(record)
+        if status == 'rejected':
+            branch.discard_candidate()
+
     def commit_candidate(self, name, iteration, branch, summary):
         if self.enforce_extraction_path_limits:
             failures = list(candidate_extraction_failures(branch.work_dir))
             if failures:
                 for failure in failures:
                     click.echo(f'{name}.{iteration}: rejected extraction: {failure}')
-                return False
+                return 'rejected', '\n'.join(failures)
         if self.baseline_coverage is not None:
             label = f'{name}.{iteration}'
             if self.measure_coverage(branch.work_dir, label) != self.baseline_coverage:
                 click.echo(f'{label}: rejected candidate: coverage changed from baseline')
-                return False
-        branch.commit(summary)
-        return True
+                return 'rejected', 'Coverage changed from baseline.'
+        if branch.commit(summary):
+            return 'accepted', ''
+        return 'no_change', ''
 
     def measure_coverage(self, workspace, label):
         report = '/tmp/agent-runner-coverage.json'
@@ -72,6 +89,15 @@ class WorktreeRunner(Runner):
 
     def worker_prompt(self, name):
         assigned = self.file_assignments.get(name)
+        prompt = self.task
+        with self.attempt_lock:
+            previous = [record for record in self.attempts
+                        if record['status'] != 'accepted' and
+                        (record['worker'] == name or set(record['files']).intersection(assigned or ()))]
+        if previous:
+            prompt += (' Choose an untried scope in your assignment before retrying a recorded attempt. '
+                       'If all scopes have been tried, use the recorded reasons to choose a different approach. '
+                       'Prior attempts: ' + json.dumps(previous))
         if assigned:
-            return f'{self.task} Refactor only these source files, in order: {", ".join(assigned)}.'
-        return super().worker_prompt(name)
+            prompt += f' Refactor only these source files, in order: {", ".join(assigned)}.'
+        return prompt

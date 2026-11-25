@@ -146,7 +146,7 @@ def _run_workspaces(settings, log_root):
         subdirs[:] = [name for name in subdirs if not name.startswith('.') and name not in ('out', 'tests')]
         source_files.extend(
             (directory / name).relative_to(repo).as_posix()
-            for name in files if name.endswith('.py') and not name.startswith(('.', 'test_'))
+            for name in files if name != '__init__.py' and name.endswith('.py') and not name.startswith(('.', 'test_'))
         )
     runner = runner_class(
         codex, repo, settings['workers'], task, settings['iterations'],

@@ -101,8 +101,8 @@ class Codex:
                 result = subprocess.run(command, cwd=work_dir, stdout=stdout, stderr=stderr)
         if result.returncode != 0:
             return CodexResult(result.returncode, '')
-        summary = json.loads(summary_path.read_text())['short_summary'].strip()
-        return CodexResult(result.returncode, summary)
+        summary = json.loads(summary_path.read_text())
+        return CodexResult(result.returncode, summary['short_summary'].strip())
 
 
 def _create_mcp_server_options(

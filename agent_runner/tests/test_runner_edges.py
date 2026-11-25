@@ -130,7 +130,7 @@ def test_workspaces_keep_disjoint_file_assignments(branch_mode, runner_type, tmp
     source = tmp_path / 'src'
     source.mkdir()
     (tmp_path / 'outside.py').touch()
-    for name in ('a.py', 'b.py', 'c.py', 'd.py', '.hidden.py', 'notes.txt'):
+    for name in ('a.py', 'b.py', 'c.py', 'd.py', '__init__.py', '.hidden.py', 'notes.txt'):
         (source / name).touch()
     hidden = source / '.cache'
     hidden.mkdir()
@@ -360,10 +360,10 @@ def test_worktree_runner_preserves_a_dirty_checkout_after_codex_failure(runner_t
 
 
 @pytest.mark.parametrize('runner_type', (FreshRunner, IncrementalRunner))
-def test_worktree_runner_stops_after_first_turn(runner_type, monkeypatch):
+def test_worktree_runner_stops_after_first_turn(runner_type, monkeypatch, tmp_path):
     check_output = Mock(side_effect=['', 'revision\n', 'HEAD\n', '', '', '', ''])
     monkeypatch.setattr(subprocess, 'check_output', check_output)
-    codex = Mock()
+    codex = Mock(log_dir=tmp_path)
     worktrees = runner_type(codex, INPUTS / 'repo', 1, 'task', 2, 'run')
 
     def finish_turn(*args):
@@ -388,10 +388,10 @@ def test_failed_codex_turn_does_not_schedule_another_clean_worktree(runner_type,
     assert check_output.call_args.args[0][3:5] == ['worktree', 'remove']
 
 
-def test_fresh_worktrees_reuse_detached_head_as_the_base(monkeypatch):
+def test_fresh_worktrees_reuse_detached_head_as_the_base(monkeypatch, tmp_path):
     check_output = Mock(side_effect=['', 'revision\n', 'HEAD\n', '', '', '', '', '', '', '', ''])
     monkeypatch.setattr(subprocess, 'check_output', check_output)
-    codex = Mock()
+    codex = Mock(log_dir=tmp_path)
     codex.run.return_value = CodexResult(0, 'done')
 
     assert FreshRunner(codex, INPUTS / 'repo', 1, 'task', 2, 'run').run() is True

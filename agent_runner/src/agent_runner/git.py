@@ -24,12 +24,13 @@ class Branch:
 
     def commit(self, message: str):
         if not run_git(self.work_dir, 'status', '--porcelain'):
-            return
+            return False
         run_git(self.work_dir, 'add', '--all')
         subject, _, _ = message.partition('\n')
         message = f'auto-refactor: {subject}'
         run_git(self.work_dir, 'commit', '-m', message)
         click.echo(f'Committed changes: {message}')
+        return True
 
 class Git:
     """Create temporary worktrees and preserve branches and uncommitted edits."""

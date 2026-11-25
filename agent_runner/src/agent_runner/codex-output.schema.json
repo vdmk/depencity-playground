@@ -3,7 +3,7 @@
   "properties": {
     "short_summary": {
       "type": "string",
-      "description": "One concise imperative commit subject, without prefix or commentary."
+      "description": "One concise imperative commit subject, without prefix or commentary. If no changes, write what was attempted"
     },
     "report": {
       "type": "string",

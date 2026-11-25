@@ -53,15 +53,15 @@ def test_extraction_limits_gate_git_commit(tmp_path, candidate, rejected_helper,
     )
     source.write_text(candidate + UNCHANGED_CALLER)
 
-    accepted = runner.commit_candidate('agent-01', 1, Branch(tmp_path), 'Process tasks')
+    status, reason = runner.commit_candidate('agent-01', 1, Branch(tmp_path), 'Process tasks')
 
     if rejected_helper:
-        assert not accepted
+        assert status == 'rejected'
         assert git('rev-parse', 'HEAD') == baseline
         assert git('diff', '--name-only') == 'tasks.py'
         assert f'rejected extraction: tasks.py: run -> {rejected_helper}:' in capsys.readouterr().out
     else:
-        assert accepted
+        assert status == 'accepted'
         assert git('rev-parse', 'HEAD') != baseline
         assert git('show', 'HEAD:tasks.py') == source.read_text().strip()
 
@@ -92,15 +92,20 @@ def test_next_iteration_starts_clean_after_rejection(runner_type, tmp_path):
             if label.endswith('.3'):
                 expected = BEFORE + '# first\n' if runner_type is IncrementalRunner else BEFORE
                 assert source.read_text() == expected
+                assert 'tasks.py: run -> ready' in task
+                return CodexResult(0, 'tasks.py run: cleanup order prevents extraction')
+            if label.endswith('.4'):
+                assert 'cleanup order prevents extraction' in task
+                assert 'Choose an untried scope' in task
             source.write_text(source.read_text() + ('# first\n' if label.endswith('.1') else '# last\n'))
         return CodexResult(0, label)
 
-    codex = Mock()
+    codex = Mock(log_dir=tmp_path / '.git')
     codex.run.side_effect = turn
-    runner = runner_type(codex, tmp_path, 1, 'task', 3, 'run', enforce_extraction_path_limits=True)
+    runner = runner_type(codex, tmp_path, 1, 'task', 4, 'run', enforce_extraction_path_limits=True)
     assert runner.run() is True
-    assert len(heads) == 3
+    assert len(heads) == 4
     assert heads[2] == heads[1]
-    iteration = 1 if runner_type is IncrementalRunner else 3
+    iteration = 1 if runner_type is IncrementalRunner else 4
     tip = f'codex-batch/run/agent-01/iteration-{iteration}'
-    assert git(tmp_path, 'log', '-1', '--format=%s', tip) == 'auto-refactor: agent-01.3'
+    assert git(tmp_path, 'log', '-1', '--format=%s', tip) == 'auto-refactor: agent-01.4'

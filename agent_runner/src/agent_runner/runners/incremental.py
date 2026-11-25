@@ -12,8 +12,7 @@ class IncrementalRunner(WorktreeRunner):
                 result = self.run_iteration(name, iteration, branch.work_dir)
                 if result.return_code != 0:
                     return False
-                if not self.commit_candidate(name, iteration, branch, result.short_summary):
-                    branch.discard_candidate()
+                self.finish_attempt(name, iteration, branch, result)
                 if self.stopping:
                     break
         return True
