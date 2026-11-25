@@ -31,6 +31,16 @@ def load_manifest(path: Path) -> dict:
     _read_task_file(settings, data, path)
     _resolve_build_paths(settings, path)
     repo = Path(settings['repo'])
+    if 'source_root' in data:
+        if settings['mode'] != 'workspaces':
+            raise click.UsageError('source_root requires workspaces mode')
+        value = data['source_root']
+        if not isinstance(value, str) or not value.strip() or Path(value).is_absolute():
+            raise click.UsageError('source_root must be a repository-relative directory')
+        source_root = (repo / value).resolve()
+        if not source_root.is_relative_to(repo) or not source_root.is_dir():
+            raise click.UsageError('source_root must be a directory inside the repository')
+        settings['source_root'] = source_root.relative_to(repo).as_posix()
     if settings['mode'] == 'evaluated':
         _resolve_evaluation_paths(settings, repo)
     return settings
@@ -42,7 +52,7 @@ def _read_manifest(path: Path) -> dict:
         data = json.loads(path.read_text())['settings']
     else:
         data = tomllib.loads(path.read_text())
-    unknown = data.keys() - {'name', 'mode', 'repo', 'log_root', 'task', 'task_file', 'build_root', 'dockerfile', 'branch_mode', 'variants', *TABLES}
+    unknown = data.keys() - {'name', 'mode', 'repo', 'log_root', 'task', 'task_file', 'build_root', 'dockerfile', 'branch_mode', 'source_root', 'variants', *TABLES}
     if unknown:
         raise click.UsageError(f'unknown manifest keys: {", ".join(sorted(unknown))}')
     return data

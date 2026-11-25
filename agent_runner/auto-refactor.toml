@@ -1,17 +1,22 @@
 name = "agent-runner-refactor"
 mode = "workspaces"
 branch_mode = "incremental"
+source_root = "agent_runner/src/agent_runner"
 repo = ".."
 build_root = ".."
 dockerfile = "docker/test/Dockerfile"
 log_root = "../out/agent-runner-refactor"
 task = """
-Refactor agent_runner/src/agent_runner into readable, simple functions while preserving public behavior.
-Minimize package-wide graph.paths.expressions.count, call.occurrences.total.count, and call.dependencies.external.distinct_count.
+Simplify the code in your assigned files while preserving public behavior.
+Start with the function or method in your assigned files with the highest own_profile.graph.paths.expressions.count. Leave it intact if no coherent simplification emerges.
 
-Start at a public entry point and trace a high-count expression path across function calls. Find where branches multiply along that path and refactor that part of the workflow.
+Use Depencity to report graph.paths.expressions.count, call.occurrences.total.count, and call.dependencies.external.distinct_count across the full source directory before and after each change. Explain which branches account for the reduction and any tradeoffs.
 
-Use Depencity to report graph.paths.expressions.count, call.occurrences.total.count, and call.dependencies.external.distinct_count across agent_runner/src/agent_runner before and after each change. Explain which branches account for the reduction and any tradeoffs.
+For each file you change, use Depencity MCP to capture a profile before and after the edit with all scopes included. Report the file's __root__ graph.paths.expressions.count and the number of function scopes before and after. Count methods and nested functions, and exclude modules, classes, and comprehensions.
+
+Use the package and file metrics for reporting only. Measure each coordinator extraction separately using own_profile.graph.paths.expressions.count. Record source_before, source_after, and helper_after. Require both:
+source_after + helper_after < source_before
+helper_after > source_after
 
 Do not:
 - Replace dict() with a {} literal.
@@ -19,6 +24,7 @@ Do not:
 - Lower the expression-path count by duplicating an existing operation across branches.
 - Replace binary arithmetic expressions with conditionals.
 - Extract part of a logical condition into a single-use variable solely to reduce expression paths.
+- Replace a Python built-in with a loop, extra branches, or manual bookkeeping solely to reduce call counts. Keep the built-in when it expresses the operation more directly.
 
 Validate with the Docker MCP tool from the repository root using pytest -q agent_runner/tests -p no:cacheprovider --import-mode=importlib -n 2.
 Leave changes uncommitted for the runner.

@@ -130,15 +130,16 @@ def test_cli_rejects_workers_outside_workspaces():
 def test_workspaces_keep_disjoint_file_assignments(branch_mode, runner_type, tmp_path, monkeypatch):
     source = tmp_path / 'src'
     source.mkdir()
+    (tmp_path / 'outside.py').touch()
     for name in ('a.py', 'b.py', 'c.py', 'd.py', '.hidden.py', 'notes.txt'):
         (source / name).touch()
-    hidden = tmp_path / '.cache'
+    hidden = source / '.cache'
     hidden.mkdir()
     (hidden / 'ignored.py').touch()
-    output = tmp_path / 'out'
+    output = source / 'out'
     output.mkdir()
     (output / 'generated.py').touch()
-    tests = tmp_path / 'tests'
+    tests = source / 'tests'
     tests.mkdir()
     (tests / 'helpers.py').touch()
     manifest = tmp_path / 'run.toml'
@@ -147,13 +148,15 @@ def test_workspaces_keep_disjoint_file_assignments(branch_mode, runner_type, tmp
         .replace('build_root = "build"', f'build_root = "{INPUTS / "build"}"')
         .replace('task_file = "task.txt"', 'task = "Refactor source."')
         .replace('workers = 1', 'workers = 2')
+        .replace('[agent]', 'source_root = "src"\n\n[agent]')
     )
     check_output = Mock(side_effect=['', 'head', 'refs/heads/main'])
     monkeypatch.setattr(subprocess, 'check_output', check_output)
     monkeypatch.setattr(subprocess, 'run', Mock(return_value=subprocess.CompletedProcess([], 0, 'head\n')))
     codex = Mock()
     codex.run.return_value = CodexResult(0, 'done')
-    monkeypatch.setattr(runner, 'Codex', Mock(return_value=codex))
+    create_codex = Mock(return_value=codex)
+    monkeypatch.setattr(runner, 'Codex', create_codex)
 
     def run_assigned_turns(selected):
         for name in ('agent-01', 'agent-02'):
@@ -165,6 +168,8 @@ def test_workspaces_keep_disjoint_file_assignments(branch_mode, runner_type, tmp
     result = CliRunner().invoke(runner.main, ['run', str(manifest)], catch_exceptions=False)
 
     assert result.exit_code == 0, result.output
+    assert create_codex.call_args.kwargs['source_root'] == 'src'
+    assert 'The source directory is src.' in codex.run.call_args.args[2]
     git_options = {'text': True, 'stderr': subprocess.PIPE}
     assert check_output.call_args_list == [
         call(['git', '-C', str(tmp_path), 'status', '--porcelain'], **git_options),
@@ -282,6 +287,38 @@ def test_plain_codex_failure_returns_no_summary(tmp_path, monkeypatch, fake_whic
     assert 'mcp_servers.agent-runner.enabled_tools=["docker"]' in args
     assert all('mcp_servers.depencity.' not in arg for arg in args)
     fake_which.assert_called_once_with('codex')
+
+
+def test_codex_grants_writes_only_under_the_configured_source_root(tmp_path, monkeypatch, fake_which):
+    checkout = tmp_path / 'checkout'
+    checkout.mkdir()
+    source = checkout / 'src'
+    source.mkdir()
+    run = Mock(return_value=subprocess.CompletedProcess([], 7))
+    monkeypatch.setattr(subprocess, 'run', run)
+    codex = Codex('model', tmp_path, INPUTS / 'build', 'Dockerfile.test', source_root='src')
+
+    assert codex.run('turn', checkout, 'task').return_code == 7
+    args, = run.call_args.args
+    rule, = (arg for arg in args if arg.startswith('permissions.project.filesystem='))
+    assert f'{json.dumps(str(checkout))} = "read"' in rule
+    assert f'{json.dumps(str(source))} = "write"' in rule
+    assert rule.count('= "write"') == 1
+
+
+@pytest.mark.parametrize('source_root', ('/outside', 'link'))
+def test_codex_rejects_source_roots_that_escape_the_checkout(source_root, tmp_path, monkeypatch, fake_which):
+    checkout = tmp_path / 'checkout'
+    checkout.mkdir()
+    (checkout / 'link').symlink_to(tmp_path, target_is_directory=True)
+    run = Mock()
+    monkeypatch.setattr(subprocess, 'run', run)
+    codex = Codex('model', tmp_path, INPUTS / 'build', 'Dockerfile.test', source_root=source_root)
+
+    with pytest.raises(ValueError, match='source_root must resolve directly inside the worker checkout'):
+        codex.run('turn', checkout, 'task')
+
+    run.assert_not_called()
 
 
 def test_mcp_server_options_can_leave_the_tool_list_unspecified():

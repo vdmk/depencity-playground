@@ -17,7 +17,7 @@ class Codex:
     """Run fresh agent sessions using the configured model."""
 
     def __init__(self, model: str, log_dir: Path, build_root: Path,
-                 dockerfile: str, with_depencity: bool = True) -> None:
+                 dockerfile: str, with_depencity: bool = True, source_root: str = '.') -> None:
         self.build_root = build_root
         self.dockerfile = dockerfile
         self.model = model
@@ -25,6 +25,7 @@ class Codex:
         self.codex = str(Path(executable).resolve()) if executable else None
         self.log_dir = log_dir
         self.with_depencity = with_depencity
+        self.source_root = source_root
 
     def run(
         self,
@@ -63,13 +64,18 @@ class Codex:
                 '--dockerfile', self.dockerfile,
             ], work_dir, ['docker'],
         ))
+        workspace = work_dir.resolve()
+        write_root = workspace / self.source_root
+        if not write_root.is_relative_to(workspace) or write_root.resolve() != write_root:
+            raise ValueError('source_root must resolve directly inside the worker checkout')
         filesystem = {
             ':root': 'deny',
             ':minimal': 'read',
             ':tmpdir': 'deny',
             ':slash_tmp': 'deny',
             self.codex: 'read',
-            str(work_dir.resolve()): 'write',
+            str(workspace): 'read',
+            str(write_root): 'write',
             str(self.log_dir.resolve()): 'deny',
         }
         command.extend(['--config', 'default_permissions="project"'])

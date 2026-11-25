@@ -137,15 +137,19 @@ def _run_workspaces(settings, log_root):
     log_root.mkdir(parents=True, exist_ok=True)
     codex = _create_codex(settings, log_root)
     runner_class = FreshRunner if settings['branch_mode'] == 'fresh' else IncrementalRunner
+    source_root = settings.get('source_root', '.')
+    task = settings['task']
+    if 'source_root' in settings:
+        task += f' The source directory is {source_root}.'
     source_files = []
-    for directory, subdirs, files in repo.walk():
+    for directory, subdirs, files in (repo / source_root).walk():
         subdirs[:] = [name for name in subdirs if not name.startswith('.') and name not in ('out', 'tests')]
         source_files.extend(
             (directory / name).relative_to(repo).as_posix()
             for name in files if name.endswith('.py') and not name.startswith(('.', 'test_'))
         )
     runner = runner_class(
-        codex, repo, settings['workers'], settings['task'], settings['iterations'],
+        codex, repo, settings['workers'], task, settings['iterations'],
         log_root.name, sorted(source_files), settings.get('require_unchanged_coverage', False),
     )
     return runner.run()
@@ -164,7 +168,8 @@ def _create_codex(settings, directory):
     variants = settings.get('variants', ['depencity'])
     return Codex(
         settings['model'], directory,
-        with_depencity=variants != ['plain'], **_docker_options(settings),
+        with_depencity=variants != ['plain'], source_root=settings.get('source_root', '.'),
+        **_docker_options(settings),
     )
 
 

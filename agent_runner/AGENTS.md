@@ -76,6 +76,10 @@ coordinator handles cherry-picks and cleanup.
 
 ## Refactoring candidates
 
+Order functions and methods from higher to lower levels of abstraction. Put
+public entry points and orchestration first, then the helpers they call, with
+low-level implementation details last.
+
 Choose transformations that simplify the actual code, not as prescriptions:
 
 - Name, inline, split, or remove variables; remove dead code and duplicate work.
