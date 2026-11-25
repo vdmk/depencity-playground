@@ -151,6 +151,7 @@ def _run_workspaces(settings, log_root):
     runner = runner_class(
         codex, repo, settings['workers'], task, settings['iterations'],
         log_root.name, sorted(source_files), settings.get('require_unchanged_coverage', False),
+        settings.get('enforce_extraction_path_limits', False),
     )
     return runner.run()
 

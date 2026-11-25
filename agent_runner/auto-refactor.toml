@@ -17,6 +17,7 @@ For each file you change, use Depencity MCP to capture a profile before and afte
 Use the package and file metrics for reporting only. Measure each coordinator extraction separately using own_profile.graph.paths.expressions.count. Record source_before, source_after, and helper_after. Require both:
 source_after + helper_after < source_before
 helper_after > source_after
+Reject an extraction if the caller only checks a guard or opens a context manager and delegates the entire remaining body to the new helper.
 
 Do not:
 - Replace dict() with a {} literal.
@@ -34,3 +35,5 @@ Leave changes uncommitted for the runner.
 workers = 5
 iterations = 5
 require_unchanged_coverage = true
+# Require fewer combined expression paths after extraction, with more in the helper than in the caller.
+enforce_extraction_path_limits = true

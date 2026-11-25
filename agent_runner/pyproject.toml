@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Run isolated Codex workers against a shared repository"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = ["click>=8.0", "fastmcp>=3.3.1"]
+dependencies = ["click>=8.0", "depencity>=0.1.1", "fastmcp>=3.3.1"]
 
 [project.scripts]
 agent-runner = "agent_runner.runner:main"

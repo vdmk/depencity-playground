@@ -12,12 +12,14 @@ version = "0.1.0"
 source = { editable = "agent_runner" }
 dependencies = [
     { name = "click" },
+    { name = "depencity" },
     { name = "fastmcp" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.0" },
+    { name = "depencity", specifier = ">=0.1.1" },
     { name = "fastmcp", specifier = ">=3.3.1" },
 ]
 

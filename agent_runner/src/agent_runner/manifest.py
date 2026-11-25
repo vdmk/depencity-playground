@@ -15,7 +15,7 @@ DEFAULT_TASK = (
 
 # Fields belonging to each TOML table.
 TABLES = {
-    'agent': ('model', 'iterations', 'workers', 'require_unchanged_coverage'),
+    'agent': ('model', 'iterations', 'workers', 'require_unchanged_coverage', 'enforce_extraction_path_limits'),
     'evaluation': ('target', 'test_script', 'metrics', 'reject_if_not_improved'),
 }
 
@@ -125,10 +125,10 @@ def _apply_manifest_values(settings: dict, data: dict, allowed: set[str]) -> Non
         if unknown:
             raise click.UsageError(f'unknown {table} keys: {", ".join(sorted(unknown))}')
         for key, value in data[table].items():
-            if key in ('workers', 'require_unchanged_coverage') and mode != 'workspaces':
+            if key in ('workers', 'require_unchanged_coverage', 'enforce_extraction_path_limits') and mode != 'workspaces':
                 raise click.UsageError(f'agent.{key} requires workspaces mode')
-            if key == 'require_unchanged_coverage' and not isinstance(value, bool):
-                raise click.UsageError('agent.require_unchanged_coverage must be a boolean')
+            if key in ('require_unchanged_coverage', 'enforce_extraction_path_limits') and not isinstance(value, bool):
+                raise click.UsageError(f'agent.{key} must be a boolean')
             settings[key] = value
 
 
