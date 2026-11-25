@@ -11,6 +11,7 @@ import shutil
 class CodexResult:
     return_code: int
     short_summary: str
+    report: str = ''
 
 
 class Codex:
@@ -102,7 +103,7 @@ class Codex:
         if result.returncode != 0:
             return CodexResult(result.returncode, '')
         summary = json.loads(summary_path.read_text())
-        return CodexResult(result.returncode, summary['short_summary'].strip())
+        return CodexResult(result.returncode, summary['short_summary'].strip(), summary['report'])
 
 
 def _create_mcp_server_options(

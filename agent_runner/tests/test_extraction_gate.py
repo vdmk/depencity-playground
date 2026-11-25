@@ -93,7 +93,7 @@ def test_next_iteration_starts_clean_after_rejection(runner_type, tmp_path):
                 expected = BEFORE + '# first\n' if runner_type is IncrementalRunner else BEFORE
                 assert source.read_text() == expected
                 assert 'tasks.py: run -> ready' in task
-                return CodexResult(0, 'tasks.py run: cleanup order prevents extraction')
+                return CodexResult(0, 'Review task processing', 'tasks.py run: cleanup order prevents extraction')
             if label.endswith('.4'):
                 assert 'cleanup order prevents extraction' in task
                 assert 'Choose an untried scope' in task

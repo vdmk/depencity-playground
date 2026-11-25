@@ -3,11 +3,11 @@
   "properties": {
     "short_summary": {
       "type": "string",
-      "description": "One concise imperative commit subject, without prefix or commentary. If no changes, write what was attempted"
+      "description": "One concise imperative commit subject, without prefix or commentary."
     },
     "report": {
       "type": "string",
-      "description": "Measurements, tradeoffs and validation results."
+      "description": "Identify each attempted file and function, the change considered, and any concrete obstacle that prevented it. Include measurements, tradeoffs and validation results."
     }
   },
   "required": [

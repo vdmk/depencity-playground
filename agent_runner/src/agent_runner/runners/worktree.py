@@ -39,7 +39,7 @@ class WorktreeRunner(Runner):
         status, reason = self.commit_candidate(name, iteration, branch, result.short_summary)
         record = {
             'worker': name, 'iteration': iteration, 'files': self.file_assignments.get(name, []),
-            'status': status, 'summary': result.short_summary, 'reason': reason,
+            'status': status, 'report': result.report, 'reason': reason,
         }
         with self.attempt_lock:
             with (self.codex.log_dir / 'attempts.jsonl').open('a') as ledger:

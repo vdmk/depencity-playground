@@ -23,7 +23,7 @@ RUN_ID = '20260102T030405000000Z-42'
 HEAD = '0123456789abcdef0123456789abcdef01234567'
 TASK = (
     'Simplify the calculation. Do not commit changes. '
-    'For short_summary: One concise imperative commit subject, without prefix or commentary. If no changes, write what was attempted. '
+    'For short_summary: One concise imperative commit subject, without prefix or commentary. '
     'Put measurements, tradeoffs and validation results in report. '
     'The agent caller will commit as "auto-refactor: {short_summary}".'
 )

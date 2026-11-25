@@ -17,7 +17,7 @@ class Runner(ABC):
         self.count = count
         self.task = (
             f'{task} Do not commit changes. '
-            'For short_summary: One concise imperative commit subject, without prefix or commentary. If no changes, write what was attempted. '
+            'For short_summary: One concise imperative commit subject, without prefix or commentary. '
             'Put measurements, tradeoffs and validation results in report. The agent caller will commit as "auto-refactor: {short_summary}".'
         )
         self.iterations = iterations
