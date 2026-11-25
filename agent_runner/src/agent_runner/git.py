@@ -17,6 +17,11 @@ class Branch:
     def __init__(self, work_dir: Path) -> None:
         self.work_dir = work_dir
 
+    def discard_candidate(self):
+        """Restore the isolated worker checkout to its latest accepted commit."""
+        run_git(self.work_dir, 'restore', '--source=HEAD', '--staged', '--worktree', '--', '.')
+        run_git(self.work_dir, 'clean', '-fdx', '--', '.')
+
     def commit(self, message: str):
         if not run_git(self.work_dir, 'status', '--porcelain'):
             return

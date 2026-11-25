@@ -42,7 +42,7 @@ class WorktreeRunner(Runner):
         if self.baseline_coverage is not None:
             label = f'{name}.{iteration}'
             if self.measure_coverage(branch.work_dir, label) != self.baseline_coverage:
-                click.echo(f'{label}: coverage changed from baseline; leaving candidate uncommitted')
+                click.echo(f'{label}: rejected candidate: coverage changed from baseline')
                 return False
         branch.commit(summary)
         return True

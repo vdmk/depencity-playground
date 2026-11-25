@@ -15,5 +15,5 @@ class FreshRunner(WorktreeRunner):
                 if result.return_code != 0:
                     return False
                 if not self.commit_candidate(name, iteration, branch, result.short_summary):
-                    return False
+                    branch.discard_candidate()
         return True

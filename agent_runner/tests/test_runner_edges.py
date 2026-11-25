@@ -51,23 +51,22 @@ def test_worktree_commits_only_at_baseline_coverage(
 
     unchanged = missing_lines == missing_branches == 0
     reports = [coverage_result(0, 0), coverage_result(missing_lines, missing_branches)]
-    if unchanged:
-        reports.append(coverage_result(0, 0))
+    reports.append(coverage_result(0, 0))
     docker = Mock(side_effect=reports)
     monkeypatch.setattr(worktree, '_docker', docker)
     configured = runner_type(
         codex, checkout, 1, 'task', 2, 'run', require_unchanged_coverage=True,
     )
 
-    assert configured.run() is unchanged
-    iterations = 2 if unchanged else 1
-    assert codex.run.call_count == iterations
+    assert configured.run() is True
+    assert codex.run.call_count == 2
     assert codex.run.return_value.return_code == 0
-    assert [invocation.args[1] for invocation in docker.call_args_list] == [checkout] + [candidate] * iterations
+    assert [invocation.args[1] for invocation in docker.call_args_list] == [checkout, candidate, candidate]
     assert len({invocation.args[4] for invocation in docker.call_args_list}) == 1
     assert (tmp_path / 'baseline.coverage.log').is_file()
     assert (tmp_path / 'agent-01.1.coverage.log').is_file()
-    assert branch.method_calls == ([call.commit('Simplify the workflow')] * iterations if unchanged else [])
+    commit = call.commit('Simplify the workflow')
+    assert branch.method_calls == [commit if unchanged else call.discard_candidate(), commit]
 
 
 def test_worktree_does_not_start_workers_when_baseline_coverage_fails(tmp_path, monkeypatch):
