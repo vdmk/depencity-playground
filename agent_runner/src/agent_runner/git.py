@@ -26,8 +26,7 @@ class Branch:
         if not run_git(self.work_dir, 'status', '--porcelain'):
             return False
         run_git(self.work_dir, 'add', '--all')
-        subject, _, _ = message.partition('\n')
-        message = f'auto-refactor: {subject}'
+        message = 'auto-refactor: ' + message.split('\n', 1)[0]
         run_git(self.work_dir, 'commit', '-m', message)
         click.echo(f'Committed changes: {message}')
         return True
@@ -54,15 +53,13 @@ class Git:
         try:
             yield Branch(workspace)
         finally:
-            dirty = bool(run_git(workspace, 'status', '--porcelain'))
-            if not dirty:
-                with self.lock:
-                    run_git(self.repo, 'worktree', 'remove', str(workspace))
-                    click.echo(f'Deleted worktree: {workspace}; branch preserved')
-            else:
+            dirty = run_git(workspace, 'status', '--porcelain')
+            if dirty:
                 click.echo(f'Preserving worktree with uncommitted changes: {workspace}')
-        if dirty:
-            raise OSError(f'uncommitted changes; preserving worktree: {workspace}')
+                raise OSError(f'uncommitted changes; preserving worktree: {workspace}')
+            with self.lock:
+                run_git(self.repo, 'worktree', 'remove', str(workspace))
+                click.echo(f'Deleted worktree: {workspace}; branch preserved')
 
 
 def create_worktree(repo, root, name, iteration, base):

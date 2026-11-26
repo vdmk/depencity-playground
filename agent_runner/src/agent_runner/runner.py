@@ -100,9 +100,8 @@ def _write_metadata(settings, log_root, resume):
 def _run_configured(settings, log_root, resume, mode) -> bool:
     """Build and execute the runner selected by the resolved settings."""
     if mode == 'evaluated':
-        if len(settings['variants']) > 1:
-            return _run_comparison(settings, log_root, resume)
-        return _run_evaluated(settings, log_root, resume)
+        runner = _run_comparison if len(settings['variants']) > 1 else _run_evaluated
+        return runner(settings, log_root, resume)
     if mode == 'workspaces':
         return _run_workspaces(settings, log_root)
     return _run_in_place(settings, log_root, resume)
@@ -164,9 +163,8 @@ def _run_workspaces(settings, log_root):
 
 def _run_in_place(settings, log_root, resume):
     """Run iterations directly in the repository."""
-    directory = log_root
-    directory.mkdir(parents=True, exist_ok=True)
-    codex = _create_codex(settings, directory)
+    log_root.mkdir(parents=True, exist_ok=True)
+    codex = _create_codex(settings, log_root)
     return InPlaceRunner(codex, Path(settings['repo']), settings['task'], settings['iterations'], resume=resume).run()
 
 

@@ -41,6 +41,13 @@ class Codex:
         stdout_log = Path(f'{log_path}.jsonl')
         stderr_log = Path(f'{log_path}.stderr.log')
         summary_path = Path(f'{log_path}.summary.json')
+        result, summary = self._run_codex(work_dir, stdout_log, stderr_log, summary_path, task)
+        if result.returncode != 0:
+            return CodexResult(result.returncode, '')
+        return CodexResult(result.returncode, summary['short_summary'].strip(), summary['report'])
+
+    def _run_codex(self, work_dir: Path, stdout_log: Path, stderr_log: Path,
+                   summary_path: Path, task: str):
         command = [
             self.codex,
             'exec',
@@ -65,24 +72,10 @@ class Codex:
                 '--dockerfile', self.dockerfile,
             ], work_dir, ['docker'],
         ))
-        workspace = work_dir.resolve()
-        write_root = workspace / self.source_root
-        if not write_root.is_relative_to(workspace) or write_root.resolve() != write_root:
-            raise ValueError('source_root must resolve directly inside the worker checkout')
-        filesystem = {
-            ':root': 'deny',
-            ':minimal': 'read',
-            ':tmpdir': 'deny',
-            ':slash_tmp': 'deny',
-            self.codex: 'read',
-            str(workspace): 'read',
-            str(write_root): 'write',
-            str(self.log_dir.resolve()): 'deny',
-        }
         command.extend(['--config', 'default_permissions="project"'])
-        rules = ', '.join(f'{json.dumps(path)} = {json.dumps(access)}'
-                          for path, access in filesystem.items())
-        command.extend(['--config', f'permissions.project.filesystem={{ {rules} }}'])
+        command.extend(['--config', _filesystem_config(
+            work_dir, self.source_root, self.codex, self.log_dir,
+        )])
         command.extend(['--config', 'permissions.project.network.enabled=false',
                         '--config', 'approval_policy="never"',
                         '--config', 'web_search="disabled"'])
@@ -99,10 +92,30 @@ class Codex:
         ])
         with stdout_log.open('w') as stdout, stderr_log.open('w') as stderr:
             result = subprocess.run(command, cwd=work_dir, stdout=stdout, stderr=stderr)
-        if result.returncode != 0:
-            return CodexResult(result.returncode, '')
-        summary = json.loads(summary_path.read_text())
-        return CodexResult(result.returncode, summary['short_summary'].strip(), summary['report'])
+        summary = json.loads(summary_path.read_text()) if result.returncode == 0 else None
+        return result, summary
+
+
+def _filesystem_config(work_dir: Path, source_root: str, codex: str,
+                       log_dir: Path) -> str:
+    workspace = work_dir.resolve()
+    write_root = workspace / source_root
+    resolved_write_root = write_root.resolve()
+    if not write_root.is_relative_to(workspace) or resolved_write_root != write_root:
+        raise ValueError('source_root must resolve directly inside the worker checkout')
+    filesystem = {
+        ':root': 'deny',
+        ':minimal': 'read',
+        ':tmpdir': 'deny',
+        ':slash_tmp': 'deny',
+        codex: 'read',
+        str(workspace): 'read',
+        str(write_root): 'write',
+        str(log_dir.resolve()): 'deny',
+    }
+    rules = ', '.join(f'{json.dumps(path)} = {json.dumps(access)}'
+                      for path, access in filesystem.items())
+    return f'permissions.project.filesystem={{ {rules} }}'
 
 
 def _create_mcp_server_options(

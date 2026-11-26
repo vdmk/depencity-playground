@@ -49,20 +49,24 @@ class WorktreeRunner(Runner):
             branch.discard_candidate()
 
     def commit_candidate(self, name, iteration, branch, summary):
+        rejection = self._candidate_rejection(name, iteration, branch)
+        if rejection is not None:
+            return rejection
+        return ('accepted', '') if branch.commit(summary) else ('no_change', '')
+
+    def _candidate_rejection(self, name, iteration, branch):
         if self.enforce_extraction_path_limits:
             failures = list(candidate_extraction_failures(branch.work_dir))
+            for failure in failures:
+                click.echo(f'{name}.{iteration}: rejected extraction: {failure}')
             if failures:
-                for failure in failures:
-                    click.echo(f'{name}.{iteration}: rejected extraction: {failure}')
                 return 'rejected', '\n'.join(failures)
         label = f'{name}.{iteration}'
         if (self.baseline_coverage is not None and
                 self.measure_coverage(branch.work_dir, label) != self.baseline_coverage):
             click.echo(f'{label}: rejected candidate: coverage changed from baseline')
             return 'rejected', 'Coverage changed from baseline.'
-        if branch.commit(summary):
-            return 'accepted', ''
-        return 'no_change', ''
+        return None
 
     def measure_coverage(self, workspace, label):
         report = '/tmp/agent-runner-coverage.json'

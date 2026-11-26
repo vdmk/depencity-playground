@@ -10,7 +10,7 @@ class IncrementalRunner(WorktreeRunner):
         with self.git.create_workspace_branch(name, 1) as branch:
             for iteration in range(1, self.iterations + 1):
                 result = self.run_iteration(name, iteration, branch.work_dir)
-                if result.return_code != 0:
+                if result.return_code:
                     return False
                 self.finish_attempt(name, iteration, branch, result)
                 if self.stopping:

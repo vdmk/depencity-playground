@@ -48,38 +48,21 @@ class EvaluatedRunner(InPlaceRunner):
         return True
 
     def _restore_completed_iteration(self, prefix, report_path):
-        if not self.resume or not report_path.exists():
-            return False
-        report = json.loads(report_path.read_text())
-        if report.get('status') not in ('accepted', 'rejected'):
-            return False
-        suffix = 'candidate' if report['accepted'] else 'before'
-        self.evaluator.restore_target(Path(f'{prefix}.{suffix}.py').read_bytes())
-        return True
+        if self.resume and report_path.exists():
+            report = json.loads(report_path.read_text())
+            if report.get('status') in ('accepted', 'rejected'):
+                self.evaluator.restore_target(Path(
+                    f"{prefix}.{'candidate' if report['accepted'] else 'before'}.py"
+                ).read_bytes())
+                return True
+        return False
 
     def run_iteration(self, name, iteration, work_dir):
         self.evaluator.restore_tests()
         before = self.evaluator.snapshot()
         (self.codex.log_dir / f'{name}.{iteration}.before.py').write_bytes(before.source)
         try:
-            target = self.evaluator.target.relative_to(work_dir)
-            with TemporaryDirectory() as directory:
-                turn = Path(directory).resolve()
-                for relative in (target, self.evaluator.test_script):
-                    destination = turn / relative
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(work_dir / relative, destination)
-                result = super().run_iteration(name, iteration, turn)
-                candidate = checked_workspace_path(turn, target)
-                checked_target = self.evaluator.check_target()
-                if candidate.exists():
-                    shutil.copyfile(candidate, checked_target)
-                else:
-                    checked_target.unlink()
-
-            report = self.evaluator.evaluate(
-                before, self.codex.log_dir / f'{name}.{iteration}', result.return_code,
-            )
+            result, report = self._evaluate_candidate(name, iteration, work_dir, before)
         except BaseException:
             self.evaluator.restore_target(before.source)
             raise
@@ -88,3 +71,24 @@ class EvaluatedRunner(InPlaceRunner):
             f'{report["metrics"]}: {report["before"]} -> {report["after"]}'
         )
         return result
+
+    def _evaluate_candidate(self, name, iteration, work_dir, before):
+        target = self.evaluator.target.relative_to(work_dir)
+        with TemporaryDirectory() as directory:
+            turn = Path(directory).resolve()
+            for relative in (target, self.evaluator.test_script):
+                destination = turn / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(work_dir / relative, destination)
+            result = super().run_iteration(name, iteration, turn)
+            candidate = checked_workspace_path(turn, target)
+            checked_target = self.evaluator.check_target()
+            if candidate.exists():
+                shutil.copyfile(candidate, checked_target)
+            else:
+                checked_target.unlink()
+
+        report = self.evaluator.evaluate(
+            before, self.codex.log_dir / f'{name}.{iteration}', result.return_code,
+        )
+        return result, report

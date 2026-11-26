@@ -117,14 +117,13 @@ class Evaluator:
             status = 'agent_failed'
             if agent_return_code == 0:
                 test_return_code = self.run_tests(log_path)
-                status = 'rejected'
                 if test_return_code == 0:
                     after_values = self.measure()
                     Path(f'{log_path}.profile.json').write_text(
                         json.dumps(after_values, indent=2) + '\n'
                     )
                     accepted = self.accepts(before, after_values)
-                    status = 'accepted' if accepted else 'rejected'
+                status = 'accepted' if accepted else 'rejected'
             report = {
                 'target': str(self.target), 'metrics': self.metrics,
                 'before': {key: before.values[key] for key in self.metrics},

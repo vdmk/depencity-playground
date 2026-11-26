@@ -72,11 +72,8 @@ async def docker(
     return await asyncio.to_thread(
         _docker,
         path,
-        config['workspace_root'],
-        config['build_root'],
-        config['dockerfile'],
-        command,
-        config['image'],
+        command=command,
+        **config,
     )
 
 
@@ -121,8 +118,6 @@ def _run_docker(
 
 def _inside(root: Path, value: str | Path) -> Path:
     path = (root / Path(value)).resolve()
-    try:
-        path.relative_to(root)
-    except ValueError as error:
-        raise ValueError(f'path must be inside workspace: {root}') from error
+    if not path.is_relative_to(root):
+        raise ValueError(f'path must be inside workspace: {root}')
     return path

@@ -31,19 +31,25 @@ def load_manifest(path: Path) -> dict:
     _read_task_file(settings, data, path)
     _resolve_build_paths(settings, path)
     repo = Path(settings['repo'])
-    if 'source_root' in data:
-        if settings['mode'] != 'workspaces':
-            raise click.UsageError('source_root requires workspaces mode')
-        value = data['source_root']
-        if not isinstance(value, str) or not value.strip() or Path(value).is_absolute():
-            raise click.UsageError('source_root must be a repository-relative directory')
-        source_root = (repo / value).resolve()
-        if not source_root.is_relative_to(repo) or not source_root.is_dir():
-            raise click.UsageError('source_root must be a directory inside the repository')
-        settings['source_root'] = source_root.relative_to(repo).as_posix()
+    _resolve_source_root(settings, data, repo)
     if settings['mode'] == 'evaluated':
         _resolve_evaluation_paths(settings, repo)
     return settings
+
+
+def _resolve_source_root(settings: dict, data: dict, repo: Path) -> None:
+    """Validate and normalize the optional workspace source directory."""
+    if 'source_root' not in data:
+        return
+    if settings['mode'] != 'workspaces':
+        raise click.UsageError('source_root requires workspaces mode')
+    value = data['source_root']
+    if not isinstance(value, str) or not value.strip() or Path(value).is_absolute():
+        raise click.UsageError('source_root must be a repository-relative directory')
+    source_root = (repo / value).resolve()
+    if not source_root.is_relative_to(repo) or not source_root.is_dir():
+        raise click.UsageError('source_root must be a directory inside the repository')
+    settings['source_root'] = source_root.relative_to(repo).as_posix()
 
 
 def _read_manifest(path: Path) -> dict:
@@ -77,10 +83,9 @@ def _configure_mode(settings: dict, data: dict) -> set[str]:
     if mode not in ('in-place', 'evaluated', 'workspaces'):
         raise click.UsageError('mode must be in-place, evaluated, or workspaces')
     _validate_mode_options(data, mode)
-    if mode == 'evaluated':
-        _configure_evaluated(settings, data)
     allowed = {'agent'}
     if mode == 'evaluated':
+        _configure_evaluated(settings, data)
         allowed.add('evaluation')
         settings.update(metrics=['graph.paths.expressions.count'], reject_if_not_improved=False)
     if 'branch_mode' in data and mode != 'workspaces':
@@ -126,10 +131,11 @@ def _apply_manifest_values(settings: dict, data: dict, allowed: set[str]) -> Non
         if unknown:
             raise click.UsageError(f'unknown {table} keys: {", ".join(sorted(unknown))}')
         for key, value in values.items():
-            if key in ('workers', 'require_unchanged_coverage', 'enforce_extraction_path_limits') and mode != 'workspaces':
+            if (key in ('workers', 'require_unchanged_coverage', 'enforce_extraction_path_limits')
+                    and mode != 'workspaces'):
                 raise click.UsageError(f'agent.{key} requires workspaces mode')
-            if (key in ('require_unchanged_coverage', 'enforce_extraction_path_limits')
-                    and not isinstance(value, bool)):
+            elif (key in ('require_unchanged_coverage', 'enforce_extraction_path_limits')
+                  and not isinstance(value, bool)):
                 raise click.UsageError(f'agent.{key} must be a boolean')
             settings[key] = value
 
@@ -147,14 +153,16 @@ def _validate_agent_settings(settings: dict) -> None:
 
 def _read_task_file(settings: dict, data: dict, path: Path) -> None:
     """Resolve task_file when supplied and reject conflicting task sources."""
-    if 'task_file' in data:
-        if 'task' in data:
-            raise click.UsageError('use task or task_file, not both')
-        if not isinstance(data['task_file'], str) or not data['task_file'].strip():
-            raise click.UsageError('task_file must be a nonempty string')
-        settings['task'] = (path.parent / data['task_file']).read_text()
-        if not settings['task'].strip():
-            raise click.UsageError('task_file must contain a task')
+    if 'task_file' not in data:
+        return
+    if 'task' in data:
+        raise click.UsageError('use task or task_file, not both')
+    task_file = data['task_file']
+    if not isinstance(task_file, str) or not task_file.strip():
+        raise click.UsageError('task_file must be a nonempty string')
+    settings['task'] = (path.parent / task_file).read_text()
+    if not settings['task'].strip():
+        raise click.UsageError('task_file must contain a task')
 
 
 def _resolve_build_paths(settings: dict, path: Path) -> None:

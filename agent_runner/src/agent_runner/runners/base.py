@@ -27,14 +27,15 @@ class Runner(ABC):
         previous_handler = signal.signal(signal.SIGINT, self.handle_interrupt)
         try:
             with ThreadPoolExecutor(max_workers=self.count) as workers:
-                futures = {}
-                for number in range(1, self.count + 1):
-                    name = f'agent-{number:02d}'
-                    futures[workers.submit(self.run_worker, name)] = name
+                futures = {
+                    workers.submit(self.run_worker, f'agent-{number:02d}'): f'agent-{number:02d}'
+                    for number in range(1, self.count + 1)
+                }
                 successful = True
                 for future in as_completed(futures):
                     try:
-                        successful &= future.result()
+                        if not future.result():
+                            successful = False
                     except (OSError, subprocess.CalledProcessError) as error:
                         click.echo(f'{futures[future]}: stopped after runner error ({error})')
                         successful = False

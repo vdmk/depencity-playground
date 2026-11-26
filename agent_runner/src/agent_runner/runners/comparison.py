@@ -35,12 +35,13 @@ class ComparisonRunner(Runner):
         for variant in self.variant_names:
             directory = log_root / variant
             directory.mkdir(parents=True, exist_ok=True)
+            workspace = directory / 'workspace'
             codex = Codex(model, directory, with_depencity=variant == 'depencity',
                           build_root=build_root, dockerfile=dockerfile)
             self.variants[variant] = EvaluatedRunner(
                 codex, repo, task, iterations, target, metrics, test_script,
-                workspace=directory / 'workspace',
-                resume=resume and (directory / 'workspace' / target).exists(),
+                workspace=workspace,
+                resume=resume and (workspace / target).exists(),
                 reject_if_not_improved=reject_if_not_improved in ('all', variant),
             )
 
