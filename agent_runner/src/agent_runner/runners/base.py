@@ -61,6 +61,6 @@ class Runner(ABC):
         click.echo(f'{name}.{iteration}: launching')
         result = self.codex.run(f'{name}.{iteration}', work_dir, self.worker_prompt(name))
         click.echo(f'{name}.{iteration}: finished with return code {result.return_code}')
-        if result.return_code != 0:
+        if result.return_code:
             click.echo(f'{name}: stopped after nonzero exit')
         return result

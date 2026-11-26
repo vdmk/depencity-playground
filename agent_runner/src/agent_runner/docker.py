@@ -68,8 +68,7 @@ def run_docker(
 
 def docker_daemon_unavailable(output: str) -> bool:
     output = output.lower()
-    return (
-        'docker.sock' in output
-        or 'docker daemon' in output
-        or 'permission denied' in output
+    return any(
+        message in output
+        for message in ('docker.sock', 'docker daemon', 'permission denied')
     )

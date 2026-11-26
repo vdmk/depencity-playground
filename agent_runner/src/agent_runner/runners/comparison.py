@@ -11,6 +11,21 @@ from agent_runner.runners.evaluated import EvaluatedRunner
 VARIANTS = ('plain', 'depencity')
 
 
+def _restore_finished_iteration(runner, prefix):
+    report_path = Path(f'{prefix}.evaluation.json')
+    if not report_path.exists():
+        return False
+    try:
+        report = json.loads(report_path.read_text())
+    except json.JSONDecodeError:
+        report = {}
+    if report.get('status') not in ('accepted', 'rejected'):
+        return False
+    suffix = 'candidate' if report['accepted'] else 'before'
+    runner.evaluator.restore_target(Path(f'{prefix}.{suffix}.py').read_bytes())
+    return True
+
+
 class ComparisonRunner(Runner):
     def __init__(self, repo, log_root, task, model, iterations, target, metrics,
                  test_script, resume, reject_if_not_improved, build_root, dockerfile, variants=VARIANTS):
@@ -34,16 +49,8 @@ class ComparisonRunner(Runner):
         runner = self.variants[variant]
         for iteration in range(1, self.iterations + 1):
             prefix = runner.codex.log_dir / f'{variant}.{iteration}'
-            report_path = Path(f'{prefix}.evaluation.json')
-            if report_path.exists():
-                try:
-                    report = json.loads(report_path.read_text())
-                except json.JSONDecodeError:
-                    report = {}
-                if report.get('status') in ('accepted', 'rejected'):
-                    suffix = 'candidate' if report['accepted'] else 'before'
-                    runner.evaluator.restore_target(Path(f'{prefix}.{suffix}.py').read_bytes())
-                    continue
+            if _restore_finished_iteration(runner, prefix):
+                continue
             if self.stopping:
                 break
             checkpoint = Path(f'{prefix}.before.py')

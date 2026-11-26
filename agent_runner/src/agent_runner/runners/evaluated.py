@@ -35,12 +35,8 @@ class EvaluatedRunner(InPlaceRunner):
         for iteration in range(1, self.iterations + 1):
             prefix = self.codex.log_dir / f'{name}.{iteration}'
             report_path = Path(f'{prefix}.evaluation.json')
-            if self.resume and report_path.exists():
-                report = json.loads(report_path.read_text())
-                if report.get('status') in ('accepted', 'rejected'):
-                    suffix = 'candidate' if report['accepted'] else 'before'
-                    self.evaluator.restore_target(Path(f'{prefix}.{suffix}.py').read_bytes())
-                    continue
+            if self._restore_completed_iteration(prefix, report_path):
+                continue
             if self.stopping:
                 break
             checkpoint = Path(f'{prefix}.before.py')
@@ -49,6 +45,16 @@ class EvaluatedRunner(InPlaceRunner):
             result = self.run_iteration(name, iteration, self.repo)
             if result.return_code:
                 return False
+        return True
+
+    def _restore_completed_iteration(self, prefix, report_path):
+        if not self.resume or not report_path.exists():
+            return False
+        report = json.loads(report_path.read_text())
+        if report.get('status') not in ('accepted', 'rejected'):
+            return False
+        suffix = 'candidate' if report['accepted'] else 'before'
+        self.evaluator.restore_target(Path(f'{prefix}.{suffix}.py').read_bytes())
         return True
 
     def run_iteration(self, name, iteration, work_dir):
@@ -65,10 +71,11 @@ class EvaluatedRunner(InPlaceRunner):
                     shutil.copyfile(work_dir / relative, destination)
                 result = super().run_iteration(name, iteration, turn)
                 candidate = checked_workspace_path(turn, target)
+                checked_target = self.evaluator.check_target()
                 if candidate.exists():
-                    shutil.copyfile(candidate, self.evaluator.check_target())
+                    shutil.copyfile(candidate, checked_target)
                 else:
-                    self.evaluator.check_target().unlink()
+                    checked_target.unlink()
 
             report = self.evaluator.evaluate(
                 before, self.codex.log_dir / f'{name}.{iteration}', result.return_code,

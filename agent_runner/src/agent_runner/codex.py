@@ -97,9 +97,8 @@ class Codex:
             self.model,
             task,
         ])
-        with stdout_log.open('w') as stdout:
-            with stderr_log.open('w') as stderr:
-                result = subprocess.run(command, cwd=work_dir, stdout=stdout, stderr=stderr)
+        with stdout_log.open('w') as stdout, stderr_log.open('w') as stderr:
+            result = subprocess.run(command, cwd=work_dir, stdout=stdout, stderr=stderr)
         if result.returncode != 0:
             return CodexResult(result.returncode, '')
         summary = json.loads(summary_path.read_text())

@@ -119,15 +119,17 @@ def _apply_manifest_values(settings: dict, data: dict, allowed: set[str]) -> Non
     for table, fields in TABLES.items():
         if table not in data:
             continue
-        if table not in allowed or not isinstance(data[table], dict):
+        values = data[table]
+        if table not in allowed or not isinstance(values, dict):
             raise click.UsageError(f'{table} is not supported in {mode} mode')
-        unknown = data[table].keys() - set(fields)
+        unknown = values.keys() - set(fields)
         if unknown:
             raise click.UsageError(f'unknown {table} keys: {", ".join(sorted(unknown))}')
-        for key, value in data[table].items():
+        for key, value in values.items():
             if key in ('workers', 'require_unchanged_coverage', 'enforce_extraction_path_limits') and mode != 'workspaces':
                 raise click.UsageError(f'agent.{key} requires workspaces mode')
-            if key in ('require_unchanged_coverage', 'enforce_extraction_path_limits') and not isinstance(value, bool):
+            if (key in ('require_unchanged_coverage', 'enforce_extraction_path_limits')
+                    and not isinstance(value, bool)):
                 raise click.UsageError(f'agent.{key} must be a boolean')
             settings[key] = value
 

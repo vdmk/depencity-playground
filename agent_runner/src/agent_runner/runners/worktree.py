@@ -55,11 +55,11 @@ class WorktreeRunner(Runner):
                 for failure in failures:
                     click.echo(f'{name}.{iteration}: rejected extraction: {failure}')
                 return 'rejected', '\n'.join(failures)
-        if self.baseline_coverage is not None:
-            label = f'{name}.{iteration}'
-            if self.measure_coverage(branch.work_dir, label) != self.baseline_coverage:
-                click.echo(f'{label}: rejected candidate: coverage changed from baseline')
-                return 'rejected', 'Coverage changed from baseline.'
+        label = f'{name}.{iteration}'
+        if (self.baseline_coverage is not None and
+                self.measure_coverage(branch.work_dir, label) != self.baseline_coverage):
+            click.echo(f'{label}: rejected candidate: coverage changed from baseline')
+            return 'rejected', 'Coverage changed from baseline.'
         if branch.commit(summary):
             return 'accepted', ''
         return 'no_change', ''

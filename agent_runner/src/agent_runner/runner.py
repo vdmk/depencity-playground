@@ -44,6 +44,15 @@ def run(manifest: Path, resume: bool, workers: int | None, iterations: int | Non
     if iterations is not None:
         settings['iterations'] = iterations
     base = Path(settings['log_root'])
+    log_root = _resolve_log_root(settings, base, resume, mode)
+    _write_metadata(settings, log_root, resume)
+    click.echo(f'Run: {log_root}')
+    if not _run_configured(settings, log_root, resume, mode):
+        raise click.exceptions.Exit(1)
+
+
+def _resolve_log_root(settings, base, resume, mode):
+    """Find the resumed run directory or create a new one."""
     if resume:
         if mode == 'workspaces':
             raise click.UsageError('workspaces mode does not support --continue')
@@ -61,10 +70,7 @@ def run(manifest: Path, resume: bool, workers: int | None, iterations: int | Non
         run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
         log_root = base / run_id
         log_root.mkdir(parents=True)
-    _write_metadata(settings, log_root, resume)
-    click.echo(f'Run: {log_root}')
-    if not _run_configured(settings, log_root, resume, mode):
-        raise click.exceptions.Exit(1)
+    return log_root
 
 
 def _write_metadata(settings, log_root, resume):
