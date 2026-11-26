@@ -20,7 +20,10 @@ source_after + helper_after < source_before
 helper_after > source_after
 Reject an extraction if the caller only checks a guard or opens a context manager and delegates the entire remaining body to the new helper.
 
+Prefer guard clauses and early returns. Keep them when they make the main path easier to read.
+
 Do not:
+- Use assignment expressions (`:=`, the walrus operator) in conditions.
 - Replace dict() with a {} literal.
 - Replace dict.update() calls with individual key assignments.
 - Lower the expression-path count by duplicating an existing operation across branches.
