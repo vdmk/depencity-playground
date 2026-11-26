@@ -67,6 +67,22 @@ for their selection. Cherry-pick only selected commits onto `main` in iteration
 order. Validate the integrated changes with the runner suite through Docker MCP
 and compare the package profile with the run record.
 
+Keep the cherry-picked commits separate on `main` while the human reviews the
+integrated batch and its validation results. Ask for review and wait for explicit
+approval before squashing. Once approved, squash the batch into one commit on
+`main`, preserving all earlier commits. Verify that the squash commit has the
+same tree as the validated batch.
+
+Use this commit-message format, listing the original commit subjects in
+cherry-pick order with their autorefactor prefixes removed:
+
+```text
+autorefactor: <summary>
+
+- <first commit subject>
+- <next commit subject>
+```
+
 Before deleting a local run branch, run `git cherry main <run-branch>` to find
 patches still unique to it. Keep the branch while any patch awaits a decision or
 integration is incomplete because of a conflict or unexpected validation failure.
