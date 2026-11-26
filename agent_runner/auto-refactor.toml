@@ -8,7 +8,8 @@ dockerfile = "docker/test/Dockerfile"
 log_root = "../out/agent-runner-refactor"
 task = """
 Simplify the code in your assigned files while preserving public behavior.
-Start with the function or method in your assigned files with the highest own_profile.graph.paths.expressions.count. Leave it intact if no coherent simplification emerges.
+Start with the function or method in your assigned files with the highest own_profile.graph.paths.expressions.count.
+If you can't make a change, try again within your session with a different perspective. Consider a larger, coherent refactoring across related functions before reporting no change.
 
 Use Depencity to report graph.paths.expressions.count, call.occurrences.total.count, and call.dependencies.external.distinct_count across the full source directory before and after each change. Explain which branches account for the reduction and any tradeoffs.
 
