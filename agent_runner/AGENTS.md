@@ -3,6 +3,8 @@
 These instructions cover runner development and worker/reviewer workflows. Paths
 below are relative to the workspace root.
 
+Agent Runner requires 100% branch coverage.
+
 ## Complexity-driven refactoring
 
 Use the local complexity MCP as the primary workspace and measurement boundary
@@ -25,7 +27,9 @@ For each iteration:
    `docker` tool, `docker/test/Dockerfile`, and two pytest-xdist workers:
 
    ```sh
-   pytest -q agent_runner/tests -p no:cacheprovider --import-mode=importlib -n 2
+   env COVERAGE_FILE=/tmp/.coverage pytest -q agent_runner/tests -p no:cacheprovider \
+     --import-mode=importlib -n 2 --cov=agent_runner/src/agent_runner \
+     --cov-branch --cov-fail-under=100
    ```
 
    Do not run pytest on the host. The Docker build may use network access to
