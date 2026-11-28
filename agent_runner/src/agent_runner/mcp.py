@@ -19,6 +19,10 @@ from agent_runner.docker import (
     docker_daemon_unavailable,
     run_docker,
 )
+from agent_runner.utils import acquire_file_semaphore
+
+
+MAX_CONCURRENT_DOCKER_CHECKS = 6
 
 
 @click.command(name='agent-runner-mcp')
@@ -91,11 +95,12 @@ def _docker(
         raise RuntimeError('Docker executable not found on PATH or in ~/.docker/bin')
 
     build_args = docker_build_command(build_root, dockerfile, image, executable)
-    build = _run_docker(build_args, build_root, 'Docker image build')
-    if build.returncode:
-        raise RuntimeError(f'Docker image build failed: {build.stdout.strip()}')
-    command_args = docker_command(target, workspace_root, image, command, executable)
-    result = _run_docker(command_args, workspace_root, 'Docker test')
+    with acquire_file_semaphore('depencity-docker-checks', MAX_CONCURRENT_DOCKER_CHECKS):
+        build = _run_docker(build_args, build_root, 'Docker image build')
+        if build.returncode:
+            raise RuntimeError(f'Docker image build failed: {build.stdout.strip()}')
+        command_args = docker_command(target, workspace_root, image, command, executable)
+        result = _run_docker(command_args, workspace_root, 'Docker test')
     return json.dumps({
         'returncode': result.returncode,
         'output': result.stdout,
