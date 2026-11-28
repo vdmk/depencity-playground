@@ -28,6 +28,7 @@ Do not:
 - Replace dict.update() calls with individual key assignments.
 - Lower the expression-path count by duplicating an existing operation across branches.
 - Replace binary arithmetic expressions with conditionals.
+- Replace explicit comparisons with zero with implicit truthiness checks. Keep comparisons such as `result.return_code != 0` and `result.return_code == 0`.
 - Extract part of a logical condition into a single-use variable solely to reduce expression paths.
 - Replace a Python built-in with a loop, extra branches, or manual bookkeeping solely to reduce call counts. Keep the built-in when it expresses the operation more directly.
 
