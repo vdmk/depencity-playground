@@ -14,8 +14,7 @@ class InPlaceRunner(Runner):
         for iteration in range(1, self.iterations + 1):
             if self.resume and (self.codex.log_dir / f'{name}.{iteration}.summary.json').exists():
                 continue
-            result = self.run_iteration(name, iteration, self.repo)
-            if result.return_code != 0:
+            if self.run_iteration(name, iteration, self.repo).return_code != 0:
                 return False
             if self.stopping:
                 break

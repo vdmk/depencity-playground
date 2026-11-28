@@ -107,14 +107,16 @@ class Evaluator:
             candidate = self.target.read_bytes() if self.target.exists() else b''
             Path(f'{log_path}.before.py').write_bytes(before.source)
             Path(f'{log_path}.candidate.py').write_bytes(candidate)
-            Path(f'{log_path}.diff').write_text(''.join(difflib.unified_diff(
-                before.source.decode().splitlines(keepends=True),
-                candidate.decode().splitlines(keepends=True),
+            before_lines = before.source.decode().splitlines(keepends=True)
+            candidate_lines = candidate.decode().splitlines(keepends=True)
+            diff = difflib.unified_diff(
+                before_lines, candidate_lines,
                 fromfile=f'before/{self.target.name}', tofile=f'candidate/{self.target.name}',
-            )))
+            )
+            Path(f'{log_path}.diff').write_text(''.join(diff))
             after_values = None
             test_return_code = None
-            status = 'agent_failed'
+            status = 'rejected' if agent_return_code == 0 else 'agent_failed'
             if agent_return_code == 0:
                 test_return_code = self.run_tests(log_path)
                 if test_return_code == 0:
@@ -123,7 +125,8 @@ class Evaluator:
                         json.dumps(after_values, indent=2) + '\n'
                     )
                     accepted = self.accepts(before, after_values)
-                status = 'accepted' if accepted else 'rejected'
+                if accepted:
+                    status = 'accepted'
             report = {
                 'target': str(self.target), 'metrics': self.metrics,
                 'before': {key: before.values[key] for key in self.metrics},

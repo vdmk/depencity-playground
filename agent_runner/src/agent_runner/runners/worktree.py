@@ -41,18 +41,16 @@ class WorktreeRunner(Runner):
             'worker': name, 'iteration': iteration, 'files': self.file_assignments.get(name, []),
             'status': status, 'report': result.report, 'reason': reason,
         }
-        with self.attempt_lock:
-            with (self.codex.log_dir / 'attempts.jsonl').open('a') as ledger:
-                ledger.write(json.dumps(record) + '\n')
+        with self.attempt_lock, (self.codex.log_dir / 'attempts.jsonl').open('a') as ledger:
+            ledger.write(json.dumps(record) + '\n')
             self.attempts.append(record)
         if status == 'rejected':
             branch.discard_candidate()
 
     def commit_candidate(self, name, iteration, branch, summary):
-        rejection = self._candidate_rejection(name, iteration, branch)
-        if rejection is not None:
-            return rejection
-        return ('accepted', '') if branch.commit(summary) else ('no_change', '')
+        return self._candidate_rejection(name, iteration, branch) or (
+            ('accepted', '') if branch.commit(summary) else ('no_change', '')
+        )
 
     def _candidate_rejection(self, name, iteration, branch):
         if self.enforce_extraction_path_limits:

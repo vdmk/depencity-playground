@@ -22,10 +22,11 @@ def extraction_failures(before, after):
 
 
 def _caller_extraction_failures(name, previous, caller, helpers):
-    called = {
-        target for node in caller.nodes if node.kind == NodeKind.CALL
-        for target in node.collect_call_targets()[0]
-    } & helpers
+    called = set()
+    for node in caller.nodes:
+        if node.kind == NodeKind.CALL:
+            called.update(node.collect_call_targets()[0])
+    called.intersection_update(helpers)
     if not called:
         return
     before_count = profile(previous).graph__paths__expressions__count
@@ -43,8 +44,7 @@ def candidate_extraction_failures(workspace: Path):
         ['git', 'diff', '--no-renames', '--name-only', '-z', '--diff-filter=M',
          'HEAD', '--', '*.py'], cwd=workspace,
     )
-    for raw_path in paths.split(b'\0')[:-1]:
-        path = os.fsdecode(raw_path)
+    for path in map(os.fsdecode, paths.split(b'\0')[:-1]):
         before = subprocess.check_output(['git', 'show', f'HEAD:{path}'], cwd=workspace)
         yield from (
             f'{path}: {failure}'

@@ -88,10 +88,10 @@ def _configure_mode(settings: dict, data: dict) -> set[str]:
         _configure_evaluated(settings, data)
         allowed.add('evaluation')
         settings.update(metrics=['graph.paths.expressions.count'], reject_if_not_improved=False)
+    elif mode == 'workspaces':
+        _configure_workspaces(settings, data)
     if 'branch_mode' in data and mode != 'workspaces':
         raise click.UsageError('branch_mode requires workspaces mode')
-    if mode == 'workspaces':
-        _configure_workspaces(settings, data)
     return allowed
 
 
@@ -113,9 +113,7 @@ def _configure_evaluated(settings: dict, data: dict) -> None:
 
 def _configure_workspaces(settings: dict, data: dict) -> None:
     """Install workspace defaults and an optional branch mode."""
-    settings.update(workers=5, branch_mode='fresh')
-    if 'branch_mode' in data:
-        settings['branch_mode'] = data['branch_mode']
+    settings.update(workers=5, branch_mode=data.get('branch_mode', 'fresh'))
 
 
 def _apply_manifest_values(settings: dict, data: dict, allowed: set[str]) -> None:
@@ -127,17 +125,22 @@ def _apply_manifest_values(settings: dict, data: dict, allowed: set[str]) -> Non
         values = data[table]
         if table not in allowed or not isinstance(values, dict):
             raise click.UsageError(f'{table} is not supported in {mode} mode')
-        unknown = values.keys() - set(fields)
-        if unknown:
-            raise click.UsageError(f'unknown {table} keys: {", ".join(sorted(unknown))}')
-        for key, value in values.items():
-            if (key in ('workers', 'require_unchanged_coverage', 'enforce_extraction_path_limits')
-                    and mode != 'workspaces'):
-                raise click.UsageError(f'agent.{key} requires workspaces mode')
-            elif (key in ('require_unchanged_coverage', 'enforce_extraction_path_limits')
-                  and not isinstance(value, bool)):
-                raise click.UsageError(f'agent.{key} must be a boolean')
-            settings[key] = value
+        _apply_table_values(settings, table, fields, values, mode)
+
+
+def _apply_table_values(settings: dict, table: str, fields: tuple, values: dict, mode: str) -> None:
+    """Validate the keys and values in one supported manifest table."""
+    unknown = values.keys() - set(fields)
+    if unknown:
+        raise click.UsageError(f'unknown {table} keys: {", ".join(sorted(unknown))}')
+    for key, value in values.items():
+        if (key in ('workers', 'require_unchanged_coverage', 'enforce_extraction_path_limits')
+                and mode != 'workspaces'):
+            raise click.UsageError(f'agent.{key} requires workspaces mode')
+        elif (key in ('require_unchanged_coverage', 'enforce_extraction_path_limits')
+              and not isinstance(value, bool)):
+            raise click.UsageError(f'agent.{key} must be a boolean')
+        settings[key] = value
 
 
 def _validate_agent_settings(settings: dict) -> None:

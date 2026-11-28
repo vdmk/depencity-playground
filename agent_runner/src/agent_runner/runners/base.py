@@ -31,19 +31,27 @@ class Runner(ABC):
                     workers.submit(self.run_worker, f'agent-{number:02d}'): f'agent-{number:02d}'
                     for number in range(1, self.count + 1)
                 }
-                successful = True
-                for future in as_completed(futures):
-                    try:
-                        if not future.result():
-                            successful = False
-                    except (OSError, subprocess.CalledProcessError) as error:
-                        click.echo(f'{futures[future]}: stopped after runner error ({error})')
-                        successful = False
+                successful = self._collect_results(futures)
             click.echo('All current runs stopped; not relaunching agents.' if self.stopping
                        else 'No agents remain; stopping.')
             return successful
         finally:
             signal.signal(signal.SIGINT, previous_handler)
+
+    def _collect_results(self, futures):
+        successful = True
+        for future in as_completed(futures):
+            if self._future_failed(future, futures[future]):
+                successful = False
+        return successful
+
+    @staticmethod
+    def _future_failed(future, name):
+        try:
+            return not future.result()
+        except (OSError, subprocess.CalledProcessError) as error:
+            click.echo(f'{name}: stopped after runner error ({error})')
+            return True
 
     def handle_interrupt(self, _signum, _frame):
         if self.stopping:

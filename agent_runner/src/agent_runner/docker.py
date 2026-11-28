@@ -18,7 +18,9 @@ def docker_command(
     executable: str = 'docker',
 ) -> list[str]:
     relative_target = target.relative_to(workspace)
-    test_command = shlex.split(command) if command else ['python', str(relative_target)]
+    test_command = ['python', str(relative_target)]
+    if command:
+        test_command = shlex.split(command)
     return [
         executable, 'run', '--rm',
         '--network', 'none',

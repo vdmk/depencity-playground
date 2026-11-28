@@ -54,31 +54,34 @@ def run(manifest: Path, resume: bool, workers: int | None, iterations: int | Non
 def _resolve_log_root(settings, base, resume, mode):
     """Find the resumed run directory or create a new one."""
     if resume:
-        if mode == 'workspaces':
-            raise click.UsageError('workspaces mode does not support --continue')
-        record = latest_record(base)
-        if record is None:
-            raise click.ClickException(f'no run to continue under {base}')
-        log_root = record.parent
-        saved = load_manifest(record)
-        if settings['iterations'] < saved['iterations']:
-            raise click.UsageError('agent.iterations cannot be less than the saved total')
-        fixed_keys = (settings.keys() | saved.keys()) - {'iterations', 'reject_if_not_improved'}
-        if any(settings.get(key) != saved.get(key) for key in fixed_keys):
-            raise click.ClickException('manifest settings differ from the saved run')
-    else:
-        run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
-        log_root = base / run_id
-        log_root.mkdir(parents=True)
+        return _resolve_resumed_log_root(settings, base, mode)
+    run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + f'-{os.getpid()}'
+    log_root = base / run_id
+    log_root.mkdir(parents=True)
     return log_root
+
+
+def _resolve_resumed_log_root(settings, base, mode):
+    """Validate saved settings and return the existing run directory."""
+    if mode == 'workspaces':
+        raise click.UsageError('workspaces mode does not support --continue')
+    record = latest_record(base)
+    if record is None:
+        raise click.ClickException(f'no run to continue under {base}')
+    saved = load_manifest(record)
+    if settings['iterations'] < saved['iterations']:
+        raise click.UsageError('agent.iterations cannot be less than the saved total')
+    fixed_keys = (settings.keys() | saved.keys()) - {'iterations', 'reject_if_not_improved'}
+    if any(settings.get(key) != saved.get(key) for key in fixed_keys):
+        raise click.ClickException('manifest settings differ from the saved run')
+    return record.parent
 
 
 def _write_metadata(settings, log_root, resume):
     """Preserve run metadata while replacing its resolved settings."""
     metadata_path = log_root / 'metadata.json'
-    if resume:
-        metadata = json.loads(metadata_path.read_text()) if metadata_path.exists() else {}
-    else:
+    metadata = json.loads(metadata_path.read_text()) if resume and metadata_path.exists() else {}
+    if not resume:
         commit = subprocess.run(
             ['git', 'rev-parse', 'HEAD'], cwd=settings['repo'],
             capture_output=True, text=True,

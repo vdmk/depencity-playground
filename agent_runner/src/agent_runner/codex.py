@@ -72,14 +72,14 @@ class Codex:
                 '--dockerfile', self.dockerfile,
             ], work_dir, ['docker'],
         ))
-        command.extend(['--config', 'default_permissions="project"'])
-        command.extend(['--config', _filesystem_config(
-            work_dir, self.source_root, self.codex, self.log_dir,
-        )])
-        command.extend(['--config', 'permissions.project.network.enabled=false',
-                        '--config', 'approval_policy="never"',
-                        '--config', 'web_search="disabled"'])
         command.extend([
+            '--config', 'default_permissions="project"',
+            '--config', _filesystem_config(
+                work_dir, self.source_root, self.codex, self.log_dir,
+            ),
+            '--config', 'permissions.project.network.enabled=false',
+            '--config', 'approval_policy="never"',
+            '--config', 'web_search="disabled"',
             '--cd',
             str(work_dir),
             '--output-schema',

@@ -89,22 +89,40 @@ def _docker(
     command: str | None = None,
     image: str = DEFAULT_BUILD_IMAGE,
 ) -> str:
+    result = _run_docker_check(
+        path,
+        workspace_root,
+        build_root,
+        dockerfile,
+        command,
+        image,
+    )
+    return json.dumps({
+        'returncode': result.returncode,
+        'output': result.stdout,
+    }, sort_keys=True)
+
+
+def _run_docker_check(
+    path: str,
+    workspace_root: Path,
+    build_root: Path,
+    dockerfile: Path,
+    command: str | None,
+    image: str,
+) -> subprocess.CompletedProcess[str]:
     target = _inside(workspace_root, path)
     executable = shutil.which('docker') or str(Path.home() / '.docker' / 'bin' / 'docker')
     if not Path(executable).exists():
         raise RuntimeError('Docker executable not found on PATH or in ~/.docker/bin')
 
-    build_args = docker_build_command(build_root, dockerfile, image, executable)
     with acquire_file_semaphore('depencity-docker-checks', MAX_CONCURRENT_DOCKER_CHECKS):
+        build_args = docker_build_command(build_root, dockerfile, image, executable)
         build = _run_docker(build_args, build_root, 'Docker image build')
-        if build.returncode:
+        if build.returncode != 0:
             raise RuntimeError(f'Docker image build failed: {build.stdout.strip()}')
         command_args = docker_command(target, workspace_root, image, command, executable)
-        result = _run_docker(command_args, workspace_root, 'Docker test')
-    return json.dumps({
-        'returncode': result.returncode,
-        'output': result.stdout,
-    }, sort_keys=True)
+        return _run_docker(command_args, workspace_root, 'Docker test')
 
 
 def _run_docker(
@@ -116,7 +134,7 @@ def _run_docker(
         result = run_docker(command_args, workspace)
     except OSError as error:
         raise RuntimeError(f'{operation} could not start: {error}') from error
-    if result.returncode and docker_daemon_unavailable(result.stdout):
+    if result.returncode != 0 and docker_daemon_unavailable(result.stdout):
         raise RuntimeError(f'Docker daemon is unavailable: {result.stdout.strip()}')
     return result
 
